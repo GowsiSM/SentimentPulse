@@ -1,0 +1,140 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Core Colors */
+    --color-background: #ffffff; /* white */
+    --color-foreground: #000000; /* black */
+    --color-border: #e5e7eb; /* gray-200 */
+    --color-input: #ffffff; /* white */
+    --color-ring: #e40046; /* snapdeal-red */
+    
+    /* Card Colors */
+    --color-card: #ffffff; /* white */
+    --color-card-foreground: #000000; /* black */
+    --color-popover: #ffffff; /* white */
+    --color-popover-foreground: #000000; /* black */
+    
+    /* Muted Colors */
+    --color-muted: #f8fafc; /* slate-50 */
+    --color-muted-foreground: #5a5a59; /* gray-600 */
+    
+    /* Primary Colors */
+    --color-primary: #e40046; /* snapdeal-red */
+    --color-primary-foreground: #ffffff; /* white */
+    
+    /* Secondary Colors */
+    --color-secondary: #06081fe0; /* navy-black */
+    --color-secondary-foreground: #ffffff; /* white */
+    
+    /* Accent Colors */
+    --color-accent: #e06a6e; /* soft-red */
+    --color-accent-foreground: #ffffff; /* white */
+    
+    /* State Colors */
+    --color-destructive: #ef4444; /* red-500 */
+    --color-destructive-foreground: #ffffff; /* white */
+    --color-success: #10b981; /* emerald-500 */
+    --color-success-foreground: #ffffff; /* white */
+    --color-warning: #ffc315; /* yellow-400 */
+    --color-warning-foreground: #000000; /* black */
+    --color-error: #ef4444; /* red-500 */
+    --color-error-foreground: #ffffff; /* white */
+    
+    /* Text Colors */
+    --color-text-primary: #000000; /* black */
+    --color-text-secondary: #5a5a59; /* gray-600 */
+    
+    /* Surface Colors */
+    --color-surface: #f8fafc; /* slate-50 */
+    --color-surface-foreground: #000000; /* black */
+    
+    /* Sentiment Colors */
+    --color-sentiment-positive: #10b981; /* emerald-500 */
+    --color-sentiment-positive-bg: rgba(16, 185, 129, 0.1); /* emerald-500 with 10% opacity */
+    --color-sentiment-negative: #ef4444; /* red-500 */
+    --color-sentiment-negative-bg: rgba(239, 68, 68, 0.1); /* red-500 with 10% opacity */
+    --color-sentiment-neutral: #6b7280; /* gray-500 */
+    --color-sentiment-neutral-bg: rgba(107, 114, 128, 0.1); /* gray-500 with 10% opacity */
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-inter;
+  }
+
+  .font-data {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  /* Animation utilities */
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse-subtle {
+    0%, 100% {
+      opacity: 0.4;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  /* Transition utilities */
+  .transition-smooth {
+    transition: all 200ms ease-out;
+  }
+
+  .transition-hover {
+    transition: all 150ms ease-out;
+  }
+
+  /* Shadow utilities */
+  .shadow-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .shadow-modal {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Sentiment color utilities */
+  .bg-sentiment-positive {
+    background-color: var(--color-sentiment-positive-bg);
+  }
+
+  .bg-sentiment-negative {
+    background-color: var(--color-sentiment-negative-bg);
+  }
+
+  .bg-sentiment-neutral {
+    background-color: var(--color-sentiment-neutral-bg);
+  }
+
+  .text-sentiment-positive {
+    color: var(--color-sentiment-positive);
+  }
+
+  .text-sentiment-negative {
+    color: var(--color-sentiment-negative);
+  }
+
+  .text-sentiment-neutral {
+    color: var(--color-sentiment-neutral);
+  }
+}

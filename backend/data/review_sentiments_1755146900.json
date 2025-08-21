@@ -1,0 +1,65 @@
+[
+    {
+        "title": "Today Deal Chiffon Self Design Saree With Unstitched Blouse Piece ( Purple )",
+        "link": "https://www.snapdeal.com/product/today-deal-chiffon-self-design/623198060947",
+        "analyzed_reviews": [
+            {
+                "review": "38 Ratings & 0 Review",
+                "sentiment": "neutral"
+            },
+            {
+                "review": "Have you used this product?",
+                "sentiment": "neutral"
+            }
+        ],
+        "sentiment_summary": {
+            "positive": 0.0,
+            "slightly_positive": 0.0,
+            "neutral": 100.0,
+            "slightly_negative": 0.0,
+            "negative": 0.0
+        }
+    },
+    {
+        "title": "Samah Silk Blend Printed Saree With Unstitched Blouse Piece ( Off White )",
+        "link": "https://www.snapdeal.com/product/samah-silk-blend-printed-saree/5764608186384482614",
+        "analyzed_reviews": [
+            {
+                "review": "36 Ratings & 0 Review",
+                "sentiment": "neutral"
+            },
+            {
+                "review": "Have you used this product?",
+                "sentiment": "neutral"
+            }
+        ],
+        "sentiment_summary": {
+            "positive": 0.0,
+            "slightly_positive": 0.0,
+            "neutral": 100.0,
+            "slightly_negative": 0.0,
+            "negative": 0.0
+        }
+    },
+    {
+        "title": "BYUPRI Chiffon Solid Saree With Unstitched Blouse Piece ( Gold )",
+        "link": "https://www.snapdeal.com/product/byupri-chiffon-solid-saree-with/663033890317",
+        "analyzed_reviews": [
+            {
+                "review": "10 Ratings & 0 Review",
+                "sentiment": "neutral"
+            },
+            {
+                "review": "Have you used this product?",
+                "sentiment": "neutral"
+            }
+        ],
+        "sentiment_summary": {
+            "positive": 0.0,
+            "slightly_positive": 0.0,
+            "neutral": 100.0,
+            "slightly_negative": 0.0,
+            "negative": 0.0
+        }
+    }
+]
