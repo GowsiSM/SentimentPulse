@@ -1,3 +1,4 @@
+// frontend/src/components/ErrorBoundary.jsx
 import React from "react";
 import Icon from "./AppIcon";
 

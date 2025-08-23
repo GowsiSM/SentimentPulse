@@ -1,3 +1,4 @@
+// frontend/src/components/AppImage.jsx
 import React from 'react';
 
 function Image({

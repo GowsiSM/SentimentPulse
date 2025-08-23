@@ -1,3 +1,4 @@
+// frontend/src/components/AppIcon.jsx
 import React from 'react';
 import * as LucideIcons from 'lucide-react';
 import { HelpCircle } from 'lucide-react';
