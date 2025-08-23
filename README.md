@@ -53,13 +53,9 @@ cd backend
 ### 2. Create and activate virtual environment
 
 ```bash
-# Windows
 python -m venv venv
 venv\Scripts\activate
 
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
 ```
 
 ### 3. Install Python dependencies
@@ -169,7 +165,7 @@ Update the following settings as needed:
 Update API endpoints if different from default:
 
 ```javascript
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = 'http://localhost:5000';
 ```
 
 ## 🧪 Testing the Application
