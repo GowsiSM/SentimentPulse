@@ -15,4 +15,6 @@ pymongo==4.5.0
 bson==0.5.10
 pyjwt==2.8.0
 sqlite3
-selenium==4.
+selenium==4.11.2
+supabase==2.3.0
+requests==2.31.0

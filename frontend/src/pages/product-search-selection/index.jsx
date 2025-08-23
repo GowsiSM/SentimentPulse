@@ -437,13 +437,14 @@ const ProductSearchSelection = () => {
           {/* Products Display */}
           {viewMode === 'grid' ? (
             <ProductGrid
-              products={products}
-              selectedProducts={selectedProducts}
-              onProductSelect={handleProductSelect}
-              onProductAnalyze={handleProductAnalyze}
-              showBulkSelect={showBulkSelect}
-              isLoading={isSearching}
-            />
+            products={products}
+            selectedProducts={selectedProducts}
+            onProductSelect={handleProductSelect}
+            onProductAnalyze={handleProductAnalyze}
+            showBulkSelect={showBulkSelect}
+            isLoading={isSearching}
+            viewMode={viewMode}
+          />
           ) : (
             /* List View */
             <div className="space-y-4">

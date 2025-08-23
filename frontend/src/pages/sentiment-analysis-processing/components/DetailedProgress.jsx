@@ -1,3 +1,4 @@
+// src/pages/sentiment-analysis-processing/components/DetailedProgress.jsx
 import React from 'react';
 import Icon from '../../../components/AppIcon';
 

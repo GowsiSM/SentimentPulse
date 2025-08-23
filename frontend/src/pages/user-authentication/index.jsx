@@ -6,7 +6,6 @@ import AuthTabs from './components/AuthTabs';
 import AuthHeader from './components/AuthHeader';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
-import SocialLogin from './components/SocialLogin';
 import AuthFooter from './components/AuthFooter';
 import authService from '../../services/authService';
 
@@ -50,20 +49,6 @@ const UserAuthentication = () => {
     }
   };
 
-  const handleSocialLogin = async (provider) => {
-    setLoading(true);
-    setError('');
-
-    try {
-      await authService.socialLogin(provider);
-      navigate('/sentiment-visualization-dashboard');
-    } catch (error) {
-      setError(error.message || `${provider} login failed. Please try again.`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setError('');
@@ -96,11 +81,6 @@ const UserAuthentication = () => {
                 error={error}
               />
             )}
-            
-            <SocialLogin
-              onSocialLogin={handleSocialLogin}
-              loading={loading}
-            />
             
             <AuthFooter
               activeTab={activeTab}

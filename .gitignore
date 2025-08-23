@@ -1,0 +1,13 @@
+# Ignore environment files
+frontend/.env
+backend/.env
+
+# Node.js dependencies
+node_modules/
+
+# Python virtual environment
+venv/
+__pycache__/
+
+# Logs
+*.log

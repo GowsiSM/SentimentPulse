@@ -1,138 +1,24 @@
-// // authService.js
-// const API_BASE_URL = 'http://localhost:5000/api';
-
-// class AuthService {
-//   // Set up axios-like request handler
-//   async request(endpoint, options = {}) {
-//     const url = `${API_BASE_URL}${endpoint}`;
-//     const config = {
-//       headers: {
-//         'Content-Type': 'application/json',
-//         ...options.headers,
-//       },
-//       ...options,
-//     };
-
-//     // Add auth token if available
-//     const token = localStorage.getItem('authToken');
-//     if (token) {
-//       config.headers.Authorization = `Bearer ${token}`;
-//     }
-
-//     try {
-//       const response = await fetch(url, config);
-//       const data = await response.json();
-
-//       if (!response.ok) {
-//         throw new Error(data.error || 'Request failed');
-//       }
-
-//       return data;
-//     } catch (error) {
-//       console.error('API Request failed:', error);
-//       throw error;
-//     }
-//   }
-
-//   async login(credentials) {
-//     const response = await this.request('/auth/login', {
-//       method: 'POST',
-//       body: JSON.stringify(credentials),
-//     });
-
-//     if (response.token) {
-//       localStorage.setItem('authToken', response.token);
-//       localStorage.setItem('user', JSON.stringify(response.user));
-//     }
-
-//     return response;
-//   }
-
-//   async register(userData) {
-//     const response = await this.request('/auth/register', {
-//       method: 'POST',
-//       body: JSON.stringify(userData),
-//     });
-
-//     if (response.token) {
-//       localStorage.setItem('authToken', response.token);
-//       localStorage.setItem('user', JSON.stringify(response.user));
-//     }
-
-//     return response;
-//   }
-
-//   async socialLogin(provider) {
-//     const response = await this.request('/auth/social-login', {
-//       method: 'POST',
-//       body: JSON.stringify({ provider }),
-//     });
-
-//     if (response.token) {
-//       localStorage.setItem('authToken', response.token);
-//       localStorage.setItem('user', JSON.stringify(response.user));
-//     }
-
-//     return response;
-//   }
-
-//   async logout() {
-//     try {
-//       await this.request('/auth/logout', { method: 'POST' });
-//     } catch (error) {
-//       // Even if logout fails on server, clear local storage
-//       console.warn('Server logout failed:', error);
-//     } finally {
-//       localStorage.removeItem('authToken');
-//       localStorage.removeItem('user');
-//       localStorage.removeItem('rememberMe');
-//     }
-//   }
-
-//   async getProfile() {
-//     return await this.request('/auth/profile');
-//   }
-
-//   async changePassword(passwordData) {
-//     return await this.request('/auth/change-password', {
-//       method: 'POST',
-//       body: JSON.stringify(passwordData),
-//     });
-//   }
-
-//   isAuthenticated() {
-//     return !!localStorage.getItem('authToken');
-//   }
-
-//   getCurrentUser() {
-//     const user = localStorage.getItem('user');
-//     return user ? JSON.parse(user) : null;
-//   }
-
-//   getToken() {
-//     return localStorage.getItem('authToken');
-//   }
-// }
-
-// export default new AuthService();
-
 // src/services/authService.js
 const API_BASE_URL = 'http://localhost:5001/api/auth';
 
 class AuthService {
   constructor() {
-    this.token = localStorage.getItem('auth_token');
-    this.user = this.getStoredUser();
+    this.token = null;
+    this.user = null;
+    this.initializeFromStorage();
   }
 
-  // Get stored user data
-  getStoredUser() {
-    const userData = localStorage.getItem('user_data');
+  // Initialize from localStorage without using it directly in components
+  initializeFromStorage() {
     try {
-      return userData ? JSON.parse(userData) : null;
+      if (typeof window !== 'undefined' && window.localStorage) {
+        this.token = localStorage.getItem('auth_token');
+        const userData = localStorage.getItem('user_data');
+        this.user = userData ? JSON.parse(userData) : null;
+      }
     } catch (error) {
-      console.error('Error parsing stored user data:', error);
-      return null;
+      console.error('Error initializing from storage:', error);
+      this.clearAuthData();
     }
   }
 
@@ -140,19 +26,33 @@ class AuthService {
   storeAuthData(token, user) {
     this.token = token;
     this.user = user;
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('user_data', JSON.stringify(user));
+    
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('user_data', JSON.stringify(user));
+      }
+    } catch (error) {
+      console.error('Error storing auth data:', error);
+    }
   }
 
   // Clear stored auth data
   clearAuthData() {
     this.token = null;
     this.user = null;
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_data');
+    
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_data');
+      }
+    } catch (error) {
+      console.error('Error clearing auth data:', error);
+    }
   }
 
-  // API request helper
+  // API request helper with better error handling
   async apiRequest(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
@@ -169,16 +69,33 @@ class AuthService {
     }
 
     try {
+      console.log(`Making API request to: ${url}`);
       const response = await fetch(url, config);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      
+      // Handle different content types
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = { message: await response.text() };
       }
 
+      if (!response.ok) {
+        const errorMessage = data?.error || data?.message || `HTTP error! status: ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      console.log('API request successful:', data);
       return data;
     } catch (error) {
       console.error('API request failed:', error);
+      
+      // Handle network errors
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error('Unable to connect to authentication service. Please check if the server is running on port 5001.');
+      }
+      
       throw error;
     }
   }
@@ -186,6 +103,8 @@ class AuthService {
   // Register new user
   async register(userData) {
     try {
+      console.log('Registering user:', { ...userData, password: '[HIDDEN]' });
+      
       const response = await this.apiRequest('/register', {
         method: 'POST',
         body: JSON.stringify(userData),
@@ -194,6 +113,7 @@ class AuthService {
       this.storeAuthData(response.token, response.user);
       return response;
     } catch (error) {
+      console.error('Registration failed:', error);
       throw new Error(error.message || 'Registration failed');
     }
   }
@@ -201,6 +121,8 @@ class AuthService {
   // User login
   async login(credentials) {
     try {
+      console.log('Logging in user:', { ...credentials, password: '[HIDDEN]' });
+      
       const response = await this.apiRequest('/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
@@ -209,6 +131,7 @@ class AuthService {
       this.storeAuthData(response.token, response.user);
       return response;
     } catch (error) {
+      console.error('Login failed:', error);
       throw new Error(error.message || 'Login failed');
     }
   }
@@ -234,7 +157,15 @@ class AuthService {
     try {
       const response = await this.apiRequest('/profile');
       this.user = response.user;
-      localStorage.setItem('user_data', JSON.stringify(response.user));
+      
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem('user_data', JSON.stringify(response.user));
+        }
+      } catch (storageError) {
+        console.error('Error storing user data:', storageError);
+      }
+      
       return response.user;
     } catch (error) {
       throw new Error(error.message || 'Failed to get profile');
@@ -250,7 +181,15 @@ class AuthService {
       });
 
       this.user = response.user;
-      localStorage.setItem('user_data', JSON.stringify(response.user));
+      
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem('user_data', JSON.stringify(response.user));
+        }
+      } catch (storageError) {
+        console.error('Error storing user data:', storageError);
+      }
+      
       return response.user;
     } catch (error) {
       throw new Error(error.message || 'Failed to update profile');
@@ -270,7 +209,13 @@ class AuthService {
 
       if (response.valid) {
         this.user = response.user;
-        localStorage.setItem('user_data', JSON.stringify(response.user));
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem('user_data', JSON.stringify(response.user));
+          }
+        } catch (storageError) {
+          console.error('Error storing user data:', storageError);
+        }
         return true;
       } else {
         this.clearAuthData();
@@ -280,16 +225,6 @@ class AuthService {
       console.error('Token verification failed:', error);
       this.clearAuthData();
       return false;
-    }
-  }
-
-  // Social login (placeholder for future implementation)
-  async socialLogin(provider) {
-    try {
-      // This would typically redirect to OAuth provider
-      throw new Error(`${provider} login not implemented yet`);
-    } catch (error) {
-      throw new Error(error.message || 'Social login failed');
     }
   }
 
@@ -340,6 +275,17 @@ class AuthService {
       return true;
     }
     return false;
+  }
+
+  // Test connection to auth service
+  async testConnection() {
+    try {
+      const response = await this.apiRequest('/health');
+      return response.status === 'healthy';
+    } catch (error) {
+      console.error('Auth service connection test failed:', error);
+      return false;
+    }
   }
 }
 
