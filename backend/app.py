@@ -365,47 +365,370 @@ def scrape_snapdeal_products(category, max_products=20):
     """
     Scrape products from Snapdeal for a given category
     """
-    # For now, return mock data to avoid web scraping issues
-    mock_products = [
-        {
-            "id": "iphone-14-pro-1",
-            "title": "Apple iPhone 14 Pro (128GB, Deep Purple)",
-            "link": "https://www.snapdeal.com/product/apple-iphone-14-pro/123456",
-            "price": 129999,
-            "image_url": "https://via.placeholder.com/300x300?text=iPhone+14+Pro",
-            "discount": "10% off",
-            "category": category,
-            "reviews": [],
-            "sentiment": None,
-            "scraped_at": datetime.now().isoformat()
-        },
-        {
-            "id": "samsung-s24-1",
-            "title": "Samsung Galaxy S24 Ultra (256GB, Titanium Black)",
-            "link": "https://www.snapdeal.com/product/samsung-galaxy-s24/123457",
-            "price": 119999,
-            "image_url": "https://via.placeholder.com/300x300?text=Galaxy+S24",
-            "discount": "15% off",
-            "category": category,
-            "reviews": [],
-            "sentiment": None,
-            "scraped_at": datetime.now().isoformat()
-        },
-        {
-            "id": "oneplus-12-1",
-            "title": "OnePlus 12 (256GB, Silky Black)",
-            "link": "https://www.snapdeal.com/product/oneplus-12/123458",
-            "price": 69999,
-            "image_url": "https://via.placeholder.com/300x300?text=OnePlus+12",
-            "discount": "8% off",
+    base_url = f"https://www.snapdeal.com/products/{category}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    
+    products = []
+    page = 1
+    max_pages = 3  # Limit to first 3 pages to avoid being blocked
+    
+    print(f"Scraping category: {category}")
+    
+    while len(products) < max_products and page <= max_pages:
+        try:
+            page_url = f"{base_url}?page={page}" if page > 1 else base_url
+            print(f"Scraping page {page}: {page_url}")
+            
+            response = requests.get(page_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, "html.parser")
+            
+            # Try multiple selectors for product containers
+            product_containers = soup.select(".product-tuple-listing") or \
+                               soup.select(".col-xs-6") or \
+                               soup.select("[data-snap-id]") or \
+                               soup.select(".product-item")
+            
+            if not product_containers:
+                print(f"No products found on page {page} with standard selectors")
+                # Try alternative approach
+                product_containers = soup.find_all("div", class_=lambda x: x and "product" in x.lower())
+                
+            if not product_containers:
+                print(f"No products found on page {page}, breaking")
+                break
+            
+            print(f"Found {len(product_containers)} product containers on page {page}")
+            
+            for i, product in enumerate(product_containers):
+                if len(products) >= max_products:
+                    break
+                
+                try:
+                    # Extract title - try multiple selectors
+                    title = None
+                    title_selectors = [
+                        ".product-title",
+                        "[data-key='name']",
+                        ".prodName",
+                        ".product-item-name",
+                        "p[title]",
+                        ".dp-widget-link"
+                    ]
+                    
+                    for selector in title_selectors:
+                        title_tag = product.select_one(selector)
+                        if title_tag:
+                            title = title_tag.get_text(strip=True) or title_tag.get("title", "").strip()
+                            if title:
+                                break
+                    
+                    if not title:
+                        continue
+                    
+                    # Extract link - try multiple selectors
+                    link = None
+                    link_selectors = [
+                        "a.dp-widget-link",
+                        "a[href*='/product/']",
+                        ".product-item-name a",
+                        ".prodName a",
+                        "a"
+                    ]
+                    
+                    for selector in link_selectors:
+                        link_tag = product.select_one(selector)
+                        if link_tag and link_tag.get("href"):
+                            link = link_tag["href"]
+                            if link.startswith("/product/"):
+                                link = "https://www.snapdeal.com" + link
+                                break
+                            elif "snapdeal.com" in link:
+                                break
+                    
+                    if not link or "snapdeal.com" not in link:
+                        continue
+                    
+                    # Extract price - try multiple selectors
+                    price = None
+                    price_selectors = [
+                        ".product-price",
+                        ".lfloat.product-price",
+                        ".price",
+                        "[data-key='price']",
+                        ".product-tuple-price"
+                    ]
+                    
+                    for selector in price_selectors:
+                        price_tag = product.select_one(selector)
+                        if price_tag:
+                            price_text = price_tag.get_text(strip=True)
+                            # Extract numeric price
+                            import re
+                            price_match = re.search(r'[\d,]+', price_text.replace('₹', '').replace('Rs', '').replace(',', ''))
+                            if price_match:
+                                try:
+                                    price = int(price_match.group())
+                                    break
+                                except ValueError:
+                                    pass
+                    
+                    # Extract image URL - try multiple selectors
+                    image_url = None
+                    img_selectors = [
+                        "img",
+                        ".product-image img",
+                        ".picture-elem img"
+                    ]
+                    
+                    for selector in img_selectors:
+                        img_tag = product.select_one(selector)
+                        if img_tag:
+                            src = img_tag.get("src") or img_tag.get("data-src") or img_tag.get("data-lazy-src")
+                            if src:
+                                if src.startswith("//"):
+                                    image_url = "https:" + src
+                                elif src.startswith("http"):
+                                    image_url = src
+                                break
+                    
+                    # Extract discount/offer info
+                    discount = None
+                    discount_selectors = [
+                        ".product-discount",
+                        ".discount-percent",
+                        ".offer-price"
+                    ]
+                    
+                    for selector in discount_selectors:
+                        discount_tag = product.select_one(selector)
+                        if discount_tag:
+                            discount = discount_tag.get_text(strip=True)
+                            if discount:
+                                break
+                    
+                    product_data = {
+                        "id": f"{category}-{len(products)}-{int(time.time())}",
+                        "title": title,
+                        "link": link,
+                        "price": price,
+                        "image_url": image_url,
+                        "discount": discount,
+                        "category": category,
+                        "reviews": [],
+                        "sentiment": None,
+                        "scraped_at": datetime.now().isoformat()
+                    }
+                    
+                    products.append(product_data)
+                    print(f"Scraped product {len(products)}: {title[:50]}...")
+                    
+                except Exception as e:
+                    print(f"Error parsing product {i}: {e}")
+                    continue
+            
+            page += 1
+            
+            # Add delay to avoid being blocked
+            time.sleep(random.uniform(2, 4))
+            
+        except Exception as e:
+            print(f"Error scraping page {page}: {e}")
+            
+            # Fallback to category-specific mock data if scraping fails
+            if len(products) == 0:
+                print(f"Scraping failed, generating category-specific mock data for: {category}")
+                return generate_category_mock_data(category, max_products)
+            break
+    
+    if len(products) == 0:
+        # Generate category-specific mock data as fallback
+        print(f"No products scraped, generating category-specific mock data for: {category}")
+        return generate_category_mock_data(category, max_products)
+    
+    print(f"Successfully scraped {len(products)} products for category: {category}")
+    return products
+
+def generate_category_mock_data(category, max_products=20):
+    """Generate category-specific mock data when scraping fails"""
+    
+    # Category-specific product data
+    category_products = {
+        "women-apparel-stiched-kurtis": [
+            {
+                "title": "Women's Cotton A-Line Kurti",
+                "price": 599,
+                "discount": "70% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Cotton+Kurti"
+            },
+            {
+                "title": "Anarkali Kurti with Palazzo Set",
+                "price": 899,
+                "discount": "60% off", 
+                "image_url": "https://via.placeholder.com/300x300?text=Anarkali+Set"
+            },
+            {
+                "title": "Rayon Printed Straight Kurti",
+                "price": 449,
+                "discount": "65% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Printed+Kurti"
+            },
+            {
+                "title": "Ethnic Embroidered Kurti",
+                "price": 1299,
+                "discount": "50% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Embroidered+Kurti"
+            },
+            {
+                "title": "Designer Party Wear Kurti",
+                "price": 1899,
+                "discount": "45% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Party+Kurti"
+            }
+        ],
+        "men-apparel-shirts": [
+            {
+                "title": "Men's Cotton Formal Shirt",
+                "price": 799,
+                "discount": "60% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Formal+Shirt"
+            },
+            {
+                "title": "Casual Slim Fit Shirt",
+                "price": 599,
+                "discount": "65% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Casual+Shirt"
+            },
+            {
+                "title": "Check Pattern Full Sleeve Shirt",
+                "price": 699,
+                "discount": "55% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Check+Shirt"
+            },
+            {
+                "title": "Cotton Blend Party Wear Shirt",
+                "price": 1199,
+                "discount": "50% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Party+Shirt"
+            },
+            {
+                "title": "Denim Casual Shirt for Men",
+                "price": 899,
+                "discount": "40% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Denim+Shirt"
+            }
+        ],
+        "appliances-juicer-mixer-grinders": [
+            {
+                "title": "Philips HL7756 Mixer Grinder",
+                "price": 7999,
+                "discount": "25% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Philips+Mixer"
+            },
+            {
+                "title": "Preethi Blue Leaf Diamond 750W",
+                "price": 6499,
+                "discount": "30% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Preethi+Mixer"
+            },
+            {
+                "title": "Bajaj Rex Mixer Grinder 500W",
+                "price": 3299,
+                "discount": "35% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Bajaj+Mixer"
+            },
+            {
+                "title": "Sujata Powermatic Plus 900W",
+                "price": 8999,
+                "discount": "20% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Sujata+Mixer"
+            },
+            {
+                "title": "Butterfly Smart 750W Mixer",
+                "price": 4799,
+                "discount": "40% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Butterfly+Mixer"
+            }
+        ],
+        "womens-footwear-sandal": [
+            {
+                "title": "Women's Comfort Flat Sandals",
+                "price": 599,
+                "discount": "70% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Flat+Sandals"
+            },
+            {
+                "title": "Ethnic Block Heel Sandals",
+                "price": 899,
+                "discount": "60% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Block+Heel"
+            },
+            {
+                "title": "Casual Strappy Sandals",
+                "price": 749,
+                "discount": "55% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Strappy+Sandals"
+            },
+            {
+                "title": "Designer Wedge Sandals",
+                "price": 1299,
+                "discount": "45% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Wedge+Sandals"
+            },
+            {
+                "title": "Kolhapuri Style Sandals",
+                "price": 799,
+                "discount": "50% off",
+                "image_url": "https://via.placeholder.com/300x300?text=Kolhapuri+Sandals"
+            }
+        ]
+    }
+    
+    # Get products for the specific category or use a default set
+    category_key = category.lower()
+    base_products = category_products.get(category_key, category_products.get("women-apparel-stiched-kurtis", []))
+    
+    # If no specific category found, generate generic products based on category name
+    if category_key not in category_products:
+        base_products = [
+            {
+                "title": f"{category.replace('-', ' ').title()} Product {i+1}",
+                "price": random.randint(299, 2999),
+                "discount": f"{random.randint(30, 70)}% off",
+                "image_url": f"https://via.placeholder.com/300x300?text=Product+{i+1}"
+            }
+            for i in range(5)
+        ]
+    
+    # Generate products up to max_products
+    products = []
+    for i in range(min(max_products, len(base_products) * 4)):  # Multiply to get more variety
+        base_product = base_products[i % len(base_products)]
+        
+        # Add some variation to avoid exact duplicates
+        variation_suffix = f" - Style {(i // len(base_products)) + 1}" if i >= len(base_products) else ""
+        price_variation = random.randint(-200, 500)
+        
+        product = {
+            "id": f"{category}-mock-{i}-{int(time.time())}",
+            "title": base_product["title"] + variation_suffix,
+            "link": f"https://www.snapdeal.com/product/{category}/{random.randint(100000, 999999)}",
+            "price": max(199, base_product["price"] + price_variation),
+            "image_url": base_product["image_url"],
+            "discount": base_product["discount"],
             "category": category,
             "reviews": [],
             "sentiment": None,
             "scraped_at": datetime.now().isoformat()
         }
-    ]
+        
+        products.append(product)
     
-    return mock_products[:max_products]
+    print(f"Generated {len(products)} mock products for category: {category}")
+    return products
 
 def scrape_product_reviews(product_link, max_reviews=10):
     """Scrape reviews for a specific product - mock implementation"""

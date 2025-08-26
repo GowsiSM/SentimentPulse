@@ -1,4 +1,5 @@
 // snapdeal_sentiment_analyzer/src/pages/product-search-selection/index.jsx
+// snapdeal_sentiment_analyzer/src/pages/product-search-selection/index.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
@@ -11,6 +12,7 @@ import ApiService from '../../services/api';
 const ProductSearchSelection = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentCategory, setCurrentCategory] = useState(null); // Track current search category
   const [isSearching, setIsSearching] = useState(false);
   const [showBulkSelect, setShowBulkSelect] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState([]);
@@ -63,6 +65,7 @@ const ProductSearchSelection = () => {
         
         setProducts(transformedProducts);
         setSearchQuery('Loaded from API');
+        setCurrentCategory(null); // Clear category since loading from API
         setSuccessMessage(`Loaded ${transformedProducts.length} products from server`);
       } else {
         // Fallback to local JSON file
@@ -83,6 +86,7 @@ const ProductSearchSelection = () => {
         
         setProducts(transformedProducts);
         setSearchQuery('Loaded from products.json');
+        setCurrentCategory(null); // Clear category since loading from JSON
         setSuccessMessage(`Loaded ${transformedProducts.length} products from local file`);
       }
     } catch (error) {
@@ -98,6 +102,7 @@ const ProductSearchSelection = () => {
   const handleSearch = async (query) => {
     setIsSearching(true);
     setSearchQuery(query);
+    setCurrentCategory(query); // Set current category for refresh
     setError(null);
     setSuccessMessage(null);
     
@@ -137,6 +142,17 @@ const ProductSearchSelection = () => {
       setProducts([]);
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  // Handle refresh - either refresh current category or load from file
+  const handleRefresh = async () => {
+    if (currentCategory) {
+      // If we have a current category, refresh that category
+      await handleSearch(currentCategory);
+    } else {
+      // Otherwise, load from API/JSON file
+      await loadProductsFromFile();
     }
   };
 
@@ -537,7 +553,7 @@ const ProductSearchSelection = () => {
             </div>
           )}
 
-          {/* Load More */}
+          {/* Refresh Button */}
           {products.length > 0 && !isSearching && (
             <div className="text-center mt-8">
               <Button
@@ -545,10 +561,10 @@ const ProductSearchSelection = () => {
                 iconName="RefreshCw"
                 iconPosition="right"
                 iconSize={16}
-                onClick={loadProductsFromFile}
+                onClick={handleRefresh}
                 disabled={isSearching}
               >
-                Refresh Products
+                {currentCategory ? `Refresh "${currentCategory}"` : 'Refresh Products'}
               </Button>
             </div>
           )}
