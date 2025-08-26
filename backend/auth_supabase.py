@@ -24,7 +24,7 @@ if not SUPABASE_URL:
 
 # Enhanced CORS configuration
 CORS(app, 
-     origins=["http://localhost:3000", "http://localhost:4028", "http://localhost:5173"],
+     origins=["http://localhost:3000", "http://localhost:4028", "http://localhost:5173", "http://localhost:5001"],
      supports_credentials=True,
      allow_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
