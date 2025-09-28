@@ -1,5 +1,5 @@
-flask==2.3.3
-flask-cors==4.0.0
+Flask==2.3.3
+Flask-Cors==4.0.0
 requests==2.31.0
 beautifulsoup4==4.12.2
 textblob==0.17.1
@@ -13,8 +13,7 @@ python-dotenv==1.0.0
 gunicorn==21.2.0
 pymongo==4.5.0
 bson==0.5.10
-pyjwt==2.8.0
-sqlite3
+PyJWT==2.8.0
 selenium==4.11.2
-supabase==2.3.0
-requests==2.31.0
+supabase-py==2.3.0
+supabase==1.0.1

@@ -11,3 +11,6 @@ __pycache__/
 
 # Logs
 *.log
+git rm -r --cached venv
+# Python virtual environment
+env_snapdeal/

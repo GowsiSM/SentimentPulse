@@ -57,6 +57,14 @@ python -m venv venv
 venv\Scripts\activate
 
 ```
+(Gowsi)
+.\env_snapdeal\Scripts\Activate.ps1
+where python
+python --version
+pip install transformers datasets torch scikit-learn pandas
+
+force remove files 
+git rm -f --cached env_snapdeal/*  
 
 ### 3. Install Python dependencies
 
