@@ -1,14 +1,47 @@
 # snapdeal_sentiment_analyzer/src/backend/analyzer/sentiment_analyzer.py
 import re
 import logging
-from textblob import TextBlob
+import os
+import numpy as np
 from collections import Counter
 import statistics
+import torch
+from transformers import (
+    DistilBertTokenizer, 
+    DistilBertForSequenceClassification,
+    AutoTokenizer,
+    AutoModelForSequenceClassification
+)
+from torch.nn.functional import softmax
 
 logger = logging.getLogger(__name__)
 
 class SentimentAnalyzer:
-    def __init__(self):
+    def __init__(self, model_path=None):
+        """
+        Initialize the sentiment analyzer with trained DistilBERT model
+        """
+        # Set model path
+        if model_path is None:
+            # Default to the sentiment_model directory at project root
+            current_dir = os.path.dirname(__file__)  # analyzer folder
+            backend_dir = os.path.dirname(current_dir)  # backend folder
+            project_root = os.path.dirname(backend_dir)  # project root
+            self.model_path = os.path.join(project_root, 'sentiment_model')
+        else:
+            self.model_path = model_path
+        
+        # Initialize model and tokenizer
+        self.model = None
+        self.tokenizer = None
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Load the trained model
+        self._load_model()
+        
+        # Define sentiment labels (adjust based on your training)
+        self.sentiment_labels = ['negative', 'neutral', 'positive']
+        
         # Define positive and negative keyword lists for enhanced analysis
         self.positive_keywords = {
             'excellent', 'amazing', 'awesome', 'fantastic', 'great', 'good', 'nice',
@@ -25,6 +58,35 @@ class SentimentAnalyzer:
             'difficult', 'hard', 'complicated', 'expensive', 'overpriced', 'fake',
             'fraud', 'scam', 'regret', 'return', 'refund', 'complaint'
         }
+    
+    def _load_model(self):
+        """Load the trained DistilBERT model and tokenizer"""
+        try:
+            if not os.path.exists(self.model_path):
+                raise FileNotFoundError(f"Model directory not found: {self.model_path}")
+            
+            logger.info(f"Loading model from: {self.model_path}")
+            
+            # Load tokenizer
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+            
+            # Load model
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                self.model_path,
+                num_labels=3  # Assuming 3 classes: negative, neutral, positive
+            )
+            
+            # Move model to device
+            self.model.to(self.device)
+            self.model.eval()
+            
+            logger.info(f"Model loaded successfully on {self.device}")
+            
+        except Exception as e:
+            logger.error(f"Error loading model: {str(e)}")
+            logger.warning("Falling back to TextBlob-based analysis")
+            self.model = None
+            self.tokenizer = None
     
     def analyze_product_reviews(self, reviews):
         """Analyze sentiment for a list of reviews"""
@@ -69,10 +131,91 @@ class SentimentAnalyzer:
             return self._get_default_analysis()
     
     def analyze_single_review(self, text):
-        """Analyze sentiment for a single review"""
+        """Analyze sentiment for a single review using DistilBERT model"""
         try:
             # Clean the text
             cleaned_text = self._clean_text(text)
+            
+            if self.model is not None and self.tokenizer is not None:
+                # Use trained DistilBERT model
+                return self._analyze_with_distilbert(cleaned_text)
+            else:
+                # Fallback to TextBlob analysis
+                return self._analyze_with_textblob(cleaned_text)
+                
+        except Exception as e:
+            logger.error(f"Error analyzing single review: {str(e)}")
+            return {
+                'sentiment': 'neutral',
+                'polarity': 0.0,
+                'confidence': 50.0
+            }
+    
+    def _analyze_with_distilbert(self, text):
+        """Analyze sentiment using the trained DistilBERT model"""
+        try:
+            # Tokenize the text
+            inputs = self.tokenizer(
+                text,
+                return_tensors='pt',
+                truncation=True,
+                padding=True,
+                max_length=512
+            )
+            
+            # Move inputs to device
+            inputs = {key: val.to(self.device) for key, val in inputs.items()}
+            
+            # Get predictions
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                logits = outputs.logits
+                
+                # Apply softmax to get probabilities
+                probabilities = softmax(logits, dim=-1)
+                
+                # Get predicted class and confidence
+                predicted_class_id = torch.argmax(probabilities, dim=-1).item()
+                confidence = torch.max(probabilities, dim=-1)[0].item()
+                
+                # Map to sentiment labels
+                sentiment = self.sentiment_labels[predicted_class_id]
+                
+                # Convert to polarity score (-1 to 1)
+                if sentiment == 'positive':
+                    polarity = 0.5 + (confidence - 0.33) * 0.5 / 0.67  # Scale to 0.5-1.0
+                elif sentiment == 'negative':
+                    polarity = -0.5 - (confidence - 0.33) * 0.5 / 0.67  # Scale to -1.0 to -0.5
+                else:  # neutral
+                    polarity = (confidence - 0.33) * 0.5 / 0.67 * (0.5 if predicted_class_id > 1 else -0.5)
+                
+                # Enhance with keyword analysis
+                keyword_score = self._calculate_keyword_score(text)
+                combined_polarity = (polarity + keyword_score * 0.3) / 1.3  # Weight model more heavily
+                
+                return {
+                    'sentiment': sentiment,
+                    'polarity': round(combined_polarity, 3),
+                    'confidence': round(confidence * 100, 1),
+                    'model_prediction': {
+                        'probabilities': {
+                            'negative': round(probabilities[0][0].item(), 3),
+                            'neutral': round(probabilities[0][1].item(), 3),
+                            'positive': round(probabilities[0][2].item(), 3)
+                        }
+                    }
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in DistilBERT analysis: {str(e)}")
+            # Fallback to TextBlob
+            return self._analyze_with_textblob(text)
+    
+    def _analyze_with_textblob(self, cleaned_text):
+        """Fallback analysis using TextBlob (requires TextBlob import)"""
+        try:
+            # Import TextBlob only when needed as fallback
+            from textblob import TextBlob
             
             # TextBlob analysis
             blob = TextBlob(cleaned_text)
@@ -101,8 +244,8 @@ class SentimentAnalyzer:
                 'confidence': round(confidence, 1)
             }
             
-        except Exception as e:
-            logger.error(f"Error analyzing single review: {str(e)}")
+        except ImportError:
+            logger.error("TextBlob not available for fallback analysis")
             return {
                 'sentiment': 'neutral',
                 'polarity': 0.0,

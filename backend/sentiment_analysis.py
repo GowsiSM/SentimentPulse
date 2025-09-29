@@ -14,7 +14,7 @@ import tempfile
 import subprocess
 import uuid
 from datetime import datetime
-from sentiment_analysis import enhanced_sentiment_analysis, calculate_comprehensive_summary
+from analyzer.sentiment_analyzer import SentimentAnalyzer
 import requests
 from bs4 import BeautifulSoup
 import time
@@ -31,6 +31,14 @@ CORS(app)  # Enable CORS for React frontend
 DATA_DIR = 'data'
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
+
+# Initialize the sentiment analyzer
+try:
+    sentiment_analyzer = SentimentAnalyzer()
+    logger.info("Sentiment analyzer initialized successfully")
+except Exception as e:
+    logger.error(f"Error initializing sentiment analyzer: {e}")
+    sentiment_analyzer = None
 
 class ReviewScraper:
     """Mock review scraper - replace with actual scraping logic"""
@@ -171,20 +179,36 @@ def analyze_sentiment():
         logger.info(f"Analyzing sentiment for {len(reviews)} reviews of: {product_title[:50]}...")
         
         # Analyze each review
+        if sentiment_analyzer is None:
+            return jsonify({
+                'success': False,
+                'error': 'Sentiment analyzer not available'
+            }), 500
+        
         analyzed_reviews = []
         for review_text in reviews:
-            analysis = enhanced_sentiment_analysis(review_text)
+            analysis = sentiment_analyzer.analyze_single_review(review_text)
             analyzed_reviews.append({
                 'review': review_text,
                 'sentiment': analysis['sentiment'],
                 'confidence': analysis['confidence'],
                 'polarity': analysis['polarity'],
-                'subjectivity': analysis.get('subjectivity', 0.0),
-                'word_analysis': analysis.get('word_analysis')
+                'model_prediction': analysis.get('model_prediction', {})
             })
         
-        # Calculate comprehensive summary
-        summary = calculate_comprehensive_summary(analyzed_reviews)
+        # Calculate comprehensive summary using the analyzer
+        full_analysis = sentiment_analyzer.analyze_product_reviews(reviews)
+        summary = {
+            'overall_sentiment': full_analysis['overall_sentiment'],
+            'sentiment_score': full_analysis['sentiment_score'],
+            'sentiment_distribution': {
+                'positive': {'count': full_analysis['positive_count'], 'percentage': full_analysis['positive_percent']},
+                'negative': {'count': full_analysis['negative_count'], 'percentage': full_analysis['negative_percent']},
+                'neutral': {'count': full_analysis['neutral_count'], 'percentage': full_analysis['neutral_percent']}
+            },
+            'insights': full_analysis['insights'],
+            'recommendation': sentiment_analyzer.get_sentiment_summary(full_analysis)
+        }
         
         # Prepare analysis result
         analysis_result = {
@@ -255,20 +279,36 @@ def complete_analysis():
         logger.info(f"Scraped {len(reviews)} reviews, now analyzing sentiment...")
         
         # Step 2: Analyze sentiment
+        if sentiment_analyzer is None:
+            return jsonify({
+                'success': False,
+                'error': 'Sentiment analyzer not available'
+            }), 500
+        
         analyzed_reviews = []
         for review_text in reviews:
-            analysis = enhanced_sentiment_analysis(review_text)
+            analysis = sentiment_analyzer.analyze_single_review(review_text)
             analyzed_reviews.append({
                 'review': review_text,
                 'sentiment': analysis['sentiment'],
                 'confidence': analysis['confidence'],
                 'polarity': analysis['polarity'],
-                'subjectivity': analysis.get('subjectivity', 0.0),
-                'word_analysis': analysis.get('word_analysis')
+                'model_prediction': analysis.get('model_prediction', {})
             })
         
-        # Calculate comprehensive summary
-        summary = calculate_comprehensive_summary(analyzed_reviews)
+        # Calculate comprehensive summary using the analyzer
+        full_analysis = sentiment_analyzer.analyze_product_reviews(reviews)
+        summary = {
+            'overall_sentiment': full_analysis['overall_sentiment'],
+            'sentiment_score': full_analysis['sentiment_score'],
+            'sentiment_distribution': {
+                'positive': {'count': full_analysis['positive_count'], 'percentage': full_analysis['positive_percent']},
+                'negative': {'count': full_analysis['negative_count'], 'percentage': full_analysis['negative_percent']},
+                'neutral': {'count': full_analysis['neutral_count'], 'percentage': full_analysis['neutral_percent']}
+            },
+            'insights': full_analysis['insights'],
+            'recommendation': sentiment_analyzer.get_sentiment_summary(full_analysis)
+        }
         
         # Prepare complete result
         complete_result = {
@@ -299,10 +339,9 @@ def complete_analysis():
             'file_saved': filename,
             'stats': {
                 'total_reviews': len(reviews),
-                'positive_percentage': summary['sentiment_distribution']['positive']['percentage'] + 
-                                     summary['sentiment_distribution']['slightly_positive']['percentage'],
-                'negative_percentage': summary['sentiment_distribution']['negative']['percentage'] + 
-                                     summary['sentiment_distribution']['slightly_negative']['percentage'],
+                'positive_percentage': summary['sentiment_distribution']['positive']['percentage'],
+                'negative_percentage': summary['sentiment_distribution']['negative']['percentage'],
+                'neutral_percentage': summary['sentiment_distribution']['neutral']['percentage'],
                 'recommendation': summary['recommendation']
             },
             'message': f"Successfully completed analysis for {len(reviews)} reviews"

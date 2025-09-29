@@ -6,13 +6,15 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from textblob import TextBlob
 import json
 import time
 import random
 import os
 import re
 from datetime import datetime, timedelta
+
+# Import the custom sentiment analyzer
+from analyzer.sentiment_analyzer import SentimentAnalyzer
 
 # ADD THESE IMPORTS FOR AUTHENTICATION
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -66,6 +68,15 @@ except Exception as e:
 # Create data directory if it doesn't exist
 if not os.path.exists('data'):
     os.makedirs('data')
+
+# Initialize the sentiment analyzer with trained DistilBERT model
+try:
+    sentiment_analyzer = SentimentAnalyzer()
+    print("✅ Sentiment analyzer initialized successfully")
+except Exception as e:
+    print(f"❌ Error initializing sentiment analyzer: {e}")
+    print("⚠️  Falling back to TextBlob-based analysis")
+    sentiment_analyzer = None
 
 # ADD AUTHENTICATION HELPER FUNCTIONS
 def init_db():
@@ -764,19 +775,45 @@ def scrape_product_reviews(product_link, max_reviews=10):
     return mock_reviews[:max_reviews]
 
 def analyze_sentiment(text):
-    """Analyze sentiment using TextBlob"""
+    """Analyze sentiment using trained DistilBERT model or TextBlob fallback"""
     try:
-        blob = TextBlob(text)
-        polarity = blob.sentiment.polarity
-        
-        if polarity > 0.1:
-            return {"sentiment": "positive", "score": round((polarity + 1) * 50, 1)}
-        elif polarity < -0.1:
-            return {"sentiment": "negative", "score": round((polarity + 1) * 50, 1)}
+        if sentiment_analyzer is not None:
+            # Use trained DistilBERT model
+            analysis = sentiment_analyzer.analyze_single_review(text)
+            return {
+                "sentiment": analysis['sentiment'],
+                "score": round(((analysis['polarity'] + 1) / 2) * 100, 1),
+                "confidence": analysis['confidence'],
+                "polarity": analysis['polarity'],
+                "model_prediction": analysis.get('model_prediction', {})
+            }
         else:
-            return {"sentiment": "neutral", "score": 50.0}
-    except:
-        return {"sentiment": "neutral", "score": 50.0}
+            # Fallback to TextBlob
+            from textblob import TextBlob
+            blob = TextBlob(text)
+            polarity = blob.sentiment.polarity
+            
+            if polarity > 0.1:
+                sentiment = "positive"
+            elif polarity < -0.1:
+                sentiment = "negative"
+            else:
+                sentiment = "neutral"
+            
+            return {
+                "sentiment": sentiment,
+                "score": round((polarity + 1) * 50, 1),
+                "confidence": min(abs(polarity) * 100, 95),
+                "polarity": polarity
+            }
+    except Exception as e:
+        print(f"Error in sentiment analysis: {e}")
+        return {
+            "sentiment": "neutral", 
+            "score": 50.0,
+            "confidence": 50.0,
+            "polarity": 0.0
+        }
 
 def calculate_sentiment_summary(analyzed_reviews):
     """Calculate sentiment percentages"""
