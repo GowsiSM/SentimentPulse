@@ -20,14 +20,12 @@ const RegisterForm = ({ onSubmit, loading, error }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
 
+  // FIXED: Role options now match database schema exactly
+  // Database allows: 'business', 'researcher', 'analyst', 'other'
   const roleOptions = [
-    { value: 'business-analyst', label: 'Business Analyst' },
-    { value: 'product-manager', label: 'Product Manager' },
-    { value: 'marketing-manager', label: 'Marketing Manager' },
-    { value: 'data-scientist', label: 'Data Scientist' },
-    { value: 'researcher', label: 'Researcher' },
-    { value: 'small-business-owner', label: 'Small Business Owner' },
-    { value: 'consumer', label: 'Consumer' },
+    { value: 'business', label: 'Business / Business Owner' },
+    { value: 'analyst', label: 'Analyst / Data Analyst' },
+    { value: 'researcher', label: 'Researcher / Academic' },
     { value: 'other', label: 'Other' }
   ];
 
@@ -90,7 +88,7 @@ const RegisterForm = ({ onSubmit, loading, error }) => {
     
     if (!formData?.email?.trim()) {
       errors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/?.test(formData?.email)) {
+    } else if (!/\S+@\S+\.\S+/.test(formData?.email)) {
       errors.email = 'Please enter a valid email address';
     }
     
@@ -200,7 +198,7 @@ const RegisterForm = ({ onSubmit, loading, error }) => {
                 className="h-full transition-all duration-300 ease-in-out"
                 style={{
                   width: `${percentage}%`,
-                  backgroundColor: '#e40046'
+                  backgroundColor: percentage === 100 ? '#10b981' : percentage >= 75 ? '#f59e0b' : '#ef4444'
                 }}
               />
             </div>
