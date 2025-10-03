@@ -23,7 +23,6 @@ const Header = ({
   const location = useLocation();
 
   const navigationItems = [
-    { label: 'Dashboard', path: '/sentiment-visualization-dashboard', icon: 'BarChart3' },
     { label: 'Products', path: '/product-search-selection', icon: 'Search' },
     { label: 'Reports', path: '/reports-analytics', icon: 'FileText' }
   ];

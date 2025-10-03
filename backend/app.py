@@ -730,32 +730,48 @@ def scrape_product_reviews(product_link, max_reviews=10):
     return mock_reviews[:max_reviews]
 
 def analyze_sentiment(text):
-    """Analyze sentiment using your trained model"""
+    """Analyze sentiment using trained model"""
     try:
-        if sentiment_analyzer is None:
-            # Fallback if model not loaded
+        if not text or not text.strip():
             return {
                 "sentiment": "neutral",
                 "score": 50.0,
                 "confidence": 50.0,
-                "polarity": 0.0,
-                "error": "Model not available"
+                "polarity": 0.0
             }
         
-        # Use your trained model
-        analysis = sentiment_analyzer.analyze_single_review(text)
+        if sentiment_analyzer is None:
+            # TextBlob fallback
+            from textblob import TextBlob
+            blob = TextBlob(text)
+            polarity = blob.sentiment.polarity
+            
+            if polarity > 0.1:
+                sentiment = "positive"
+            elif polarity < -0.1:
+                sentiment = "negative"
+            else:
+                sentiment = "neutral"
+            
+            return {
+                "sentiment": sentiment,
+                "score": abs(polarity) * 100,
+                "confidence": abs(polarity) * 100,
+                "polarity": polarity
+            }
         
+        # Use trained model
+        analysis = sentiment_analyzer.analyze_single_review(text)
         return {
             "sentiment": analysis["sentiment"],
-            "score": analysis["confidence"],  # Using confidence as score
+            "score": analysis["confidence"],
             "confidence": analysis["confidence"],
-            "polarity": analysis["polarity"],
-            "model_prediction": analysis.get("model_prediction", {})
+            "polarity": analysis["polarity"]
         }
     except Exception as e:
-        print(f"Error in sentiment analysis: {e}")
+        print(f"Error analyzing: {e}")
         return {
-            "sentiment": "neutral", 
+            "sentiment": "neutral",
             "score": 50.0,
             "confidence": 50.0,
             "polarity": 0.0,
@@ -923,98 +939,58 @@ def api_scrape_reviews():
 
 @app.route('/api/analyze-sentiment', methods=['POST'])
 def api_analyze_sentiment():
-    """API endpoint to analyze sentiment using your trained model"""
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "error": "No JSON data provided"}), 400
-        
-        # Extract product information
-        product_id = data.get('product_id', '')
-        product_title = data.get('product_title', '')
-        product_url = data.get('product_url', '')
         reviews = data.get('reviews', [])
-        
-        if not all([product_id, product_title, product_url]):
-            return jsonify({
-                "success": False, 
-                "error": "product_id, product_title, and product_url are required"
-            }), 400
         
         if not reviews:
             return jsonify({
                 "success": False,
-                "error": "No reviews provided for analysis"
+                "error": "No reviews provided"
             }), 400
         
-        print(f"Analyzing sentiment using trained model for: {product_title}")
+        analyzed = []
+        counts = {"positive": 0, "negative": 0, "neutral": 0}
         
-        analyzed_reviews = []
-        sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
-        
-        # Analyze each review
         for review in reviews:
-            review_text = review.get('text', '') if isinstance(review, dict) else str(review)
-            
-            if not review_text:
+            text = review.get('text', '') if isinstance(review, dict) else str(review)
+            if not text:
                 continue
-                
-            sentiment_result = analyze_sentiment(review_text)
             
-            # Count sentiments
-            sentiment_label = sentiment_result.get("sentiment", "neutral")
-            sentiment_counts[sentiment_label] = sentiment_counts.get(sentiment_label, 0) + 1
+            result = analyze_sentiment(text)
+            counts[result["sentiment"]] += 1
             
-            analyzed_reviews.append({
-                "review": review_text,
-                "rating": review.get('rating', 'No rating') if isinstance(review, dict) else 'No rating',
-                "sentiment": sentiment_result,
-                "analyzed_at": datetime.now().isoformat()
+            analyzed.append({
+                "review": text,
+                "rating": review.get('rating', 'N/A') if isinstance(review, dict) else 'N/A',
+                "sentiment": result
             })
         
-        # Calculate percentages
-        total_reviews = len(analyzed_reviews)
-        sentiment_summary = {
-            "positive": round((sentiment_counts["positive"] / total_reviews) * 100, 1) if total_reviews > 0 else 0,
-            "negative": round((sentiment_counts["negative"] / total_reviews) * 100, 1) if total_reviews > 0 else 0,
-            "neutral": round((sentiment_counts["neutral"] / total_reviews) * 100, 1) if total_reviews > 0 else 0
+        total = len(analyzed)
+        summary = {
+            "positive": round((counts["positive"]/total)*100, 1) if total > 0 else 0,
+            "negative": round((counts["negative"]/total)*100, 1) if total > 0 else 0,
+            "neutral": round((counts["neutral"]/total)*100, 1) if total > 0 else 0
         }
-        
-        # Determine overall sentiment
-        max_sentiment = max(sentiment_summary.items(), key=lambda x: x[1])
-        overall_sentiment = max_sentiment[0]
-        
-        # Prepare analysis result
-        analysis_result = {
-            "product_id": product_id,
-            "product_title": product_title,
-            "product_url": product_url,
-            "analyzed_reviews": analyzed_reviews,
-            "sentiment_summary": sentiment_summary,
-            "overall_sentiment": overall_sentiment,
-            "total_reviews": total_reviews,
-            "model_used": "trained_distilbert" if sentiment_analyzer else "textblob_fallback",
-            "analyzed_at": datetime.now().isoformat()
-        }
-        
-        # Save results
-        filename = f"data/sentiment_analysis_{product_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(analysis_result, f, indent=4, ensure_ascii=False)
         
         return jsonify({
             "success": True,
-            "analysis": analysis_result,
-            "file_saved": filename,
-            "message": f"Successfully analyzed sentiment for {total_reviews} reviews"
+            "analysis": {
+                "analyzed_reviews": analyzed,
+                "sentiment_summary": summary,
+                "total_reviews": total,
+                "overall_sentiment": max(summary.items(), key=lambda x: x[1])[0]
+            }
         })
         
     except Exception as e:
-        print(f"Error in api_analyze_sentiment: {e}")
+        print(f"ERROR: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"success": False, "error": f"Failed to analyze sentiment: {str(e)}"}), 500
-
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 # Fixed api_complete_analysis route
 
@@ -1114,7 +1090,7 @@ def api_complete_analysis():
         traceback.print_exc()
         return jsonify({"success": False, "error": f"Failed to complete analysis: {str(e)}"}), 500
     
-    
+
 @app.route('/api/products', methods=['GET'])
 @app.route('/api/products/<category>', methods=['GET'])
 def api_get_products(category=None):
