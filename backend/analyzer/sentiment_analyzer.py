@@ -1,445 +1,319 @@
-# snapdeal_sentiment_analyzer/src/backend/analyzer/sentiment_analyzer.py
-import re
-import logging
+# backend/analyzer/sentiment_analyzer.py
 import os
-import numpy as np
-from collections import Counter
-import statistics
 import torch
-from transformers import (
-    DistilBertTokenizer, 
-    DistilBertForSequenceClassification,
-    AutoTokenizer,
-    AutoModelForSequenceClassification
-)
-from torch.nn.functional import softmax
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import numpy as np
+from typing import Dict, List, Any
+import logging
 
 logger = logging.getLogger(__name__)
 
 class SentimentAnalyzer:
-    def __init__(self, model_path=None):
+    def __init__(self, model_path: str = None):
         """
-        Initialize the sentiment analyzer with trained DistilBERT model
+        Initialize the sentiment analyzer with your trained model
         """
-        # Set model path
-        if model_path is None:
-            # Default to the sentiment_model directory at project root
-            current_dir = os.path.dirname(__file__)  # analyzer folder
-            backend_dir = os.path.dirname(current_dir)  # backend folder
-            project_root = os.path.dirname(backend_dir)  # project root
-            self.model_path = os.path.join(project_root, 'sentiment_model')
-        else:
-            self.model_path = model_path
-        
-        # Initialize model and tokenizer
-        self.model = None
-        self.tokenizer = None
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        
-        # Load the trained model
-        self._load_model()
-        
-        # Define sentiment labels (adjust based on your training)
-        self.sentiment_labels = ['negative', 'neutral', 'positive']
-        
-        # Define positive and negative keyword lists for enhanced analysis
-        self.positive_keywords = {
-            'excellent', 'amazing', 'awesome', 'fantastic', 'great', 'good', 'nice',
-            'perfect', 'wonderful', 'outstanding', 'superb', 'brilliant', 'love',
-            'recommend', 'satisfied', 'happy', 'impressed', 'quality', 'best',
-            'worth', 'value', 'fast', 'quick', 'smooth', 'easy', 'comfortable',
-            'durable', 'reliable', 'useful', 'helpful', 'beautiful', 'elegant'
-        }
-        
-        self.negative_keywords = {
-            'terrible', 'awful', 'horrible', 'bad', 'poor', 'worst', 'hate',
-            'disappointed', 'unsatisfied', 'unhappy', 'waste', 'useless', 'cheap',
-            'broken', 'damaged', 'defective', 'problem', 'issue', 'slow', 'delay',
-            'difficult', 'hard', 'complicated', 'expensive', 'overpriced', 'fake',
-            'fraud', 'scam', 'regret', 'return', 'refund', 'complaint'
-        }
-    
-    def _load_model(self):
-        """Load the trained DistilBERT model and tokenizer"""
         try:
-            if not os.path.exists(self.model_path):
-                raise FileNotFoundError(f"Model directory not found: {self.model_path}")
+            # Resolve the absolute path - fix the path issue
+            current_dir = os.path.dirname(os.path.abspath(__file__))
             
-            logger.info(f"Loading model from: {self.model_path}")
+            # Try different possible paths for the model
+            possible_paths = [
+                os.path.join(current_dir, "../sentiment_model"),  # From analyzer directory
+                os.path.join(current_dir, "../../sentiment_model"),  # From backend directory
+                "./sentiment_model",  # Relative to backend
+                "../sentiment_model"  # Relative to backend
+            ]
             
-            # Load tokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+            # Use provided path or find the correct one
+            if model_path:
+                model_full_path = model_path
+            else:
+                model_full_path = None
+                for path in possible_paths:
+                    if os.path.exists(path) and os.path.isdir(path):
+                        model_full_path = path
+                        break
             
-            # Load model
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                self.model_path,
-                num_labels=3  # Assuming 3 classes: negative, neutral, positive
-            )
+            if not model_full_path or not os.path.exists(model_full_path):
+                available_paths = "\n".join([f"  - {p} (exists: {os.path.exists(p)})" for p in possible_paths])
+                raise FileNotFoundError(
+                    f"Model path not found: {model_full_path}\n"
+                    f"Tried paths:\n{available_paths}\n"
+                    f"Current directory: {current_dir}"
+                )
             
-            # Move model to device
+            logger.info(f"Loading sentiment model from: {model_full_path}")
+            
+            # Check if model files exist
+            required_files = ['config.json', 'model.safetensors', 'tokenizer.json']
+            missing_files = []
+            for file in required_files:
+                if not os.path.exists(os.path.join(model_full_path, file)):
+                    missing_files.append(file)
+            
+            if missing_files:
+                raise FileNotFoundError(
+                    f"Missing model files: {missing_files}\n"
+                    f"Available files: {os.listdir(model_full_path)}"
+                )
+            
+            # Load tokenizer and model
+            self.tokenizer = AutoTokenizer.from_pretrained(model_full_path)
+            self.model = AutoModelForSequenceClassification.from_pretrained(model_full_path)
+            
+            # Set device
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.model.to(self.device)
             self.model.eval()
             
-            logger.info(f"Model loaded successfully on {self.device}")
-            
-        except Exception as e:
-            logger.error(f"Error loading model: {str(e)}")
-            logger.warning("Falling back to TextBlob-based analysis")
-            self.model = None
-            self.tokenizer = None
-    
-    def analyze_product_reviews(self, reviews):
-        """Analyze sentiment for a list of reviews"""
-        try:
-            if not reviews:
-                return self._get_default_analysis()
-            
-            analyzed_reviews = []
-            sentiments = []
-            polarities = []
-            
-            for review in reviews:
-                review_text = review.get('text', '') if isinstance(review, dict) else str(review)
-                
-                if review_text:
-                    analysis = self.analyze_single_review(review_text)
-                    
-                    analyzed_review = {
-                        'text': review_text[:200] + '...' if len(review_text) > 200 else review_text,
-                        'sentiment': analysis['sentiment'],
-                        'polarity': analysis['polarity'],
-                        'confidence': analysis['confidence']
-                    }
-                    
-                    # Add additional review info if available
-                    if isinstance(review, dict):
-                        analyzed_review.update({
-                            'rating': review.get('rating'),
-                            'reviewer': review.get('reviewer'),
-                            'date': review.get('date')
-                        })
-                    
-                    analyzed_reviews.append(analyzed_review)
-                    sentiments.append(analysis['sentiment'])
-                    polarities.append(analysis['polarity'])
-            
-            # Calculate overall sentiment
-            return self._calculate_overall_sentiment(sentiments, polarities, analyzed_reviews)
-            
-        except Exception as e:
-            logger.error(f"Error analyzing reviews: {str(e)}")
-            return self._get_default_analysis()
-    
-    def analyze_single_review(self, text):
-        """Analyze sentiment for a single review using DistilBERT model"""
-        try:
-            # Clean the text
-            cleaned_text = self._clean_text(text)
-            
-            if self.model is not None and self.tokenizer is not None:
-                # Use trained DistilBERT model
-                return self._analyze_with_distilbert(cleaned_text)
-            else:
-                # Fallback to TextBlob analysis
-                return self._analyze_with_textblob(cleaned_text)
-                
-        except Exception as e:
-            logger.error(f"Error analyzing single review: {str(e)}")
-            return {
-                'sentiment': 'neutral',
-                'polarity': 0.0,
-                'confidence': 50.0
+            # Define sentiment labels (adjust based on your model's training)
+            self.id2label = {
+                0: "negative",
+                1: "neutral", 
+                2: "positive"
             }
-    
-    def _analyze_with_distilbert(self, text):
-        """Analyze sentiment using the trained DistilBERT model"""
+            
+            logger.info("✅ Sentiment model loaded successfully")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to load sentiment model: {e}")
+            raise
+
+    def analyze_single_review(self, text: str) -> Dict[str, Any]:
+        """
+        Analyze sentiment for a single review
+        
+        Args:
+            text: Review text to analyze
+            
+        Returns:
+            Dictionary with sentiment analysis results
+        """
         try:
-            # Tokenize the text
+            if not text or not isinstance(text, str):
+                return {
+                    "sentiment": "neutral",
+                    "confidence": 0.0,
+                    "polarity": 0.0,
+                    "error": "Invalid input text"
+                }
+            
+            # Tokenize input
             inputs = self.tokenizer(
-                text,
-                return_tensors='pt',
-                truncation=True,
-                padding=True,
+                text, 
+                return_tensors="pt", 
+                truncation=True, 
+                padding=True, 
                 max_length=512
-            )
+            ).to(self.device)
             
-            # Move inputs to device
-            inputs = {key: val.to(self.device) for key, val in inputs.items()}
-            
-            # Get predictions
+            # Get model predictions
             with torch.no_grad():
                 outputs = self.model(**inputs)
-                logits = outputs.logits
-                
-                # Apply softmax to get probabilities
-                probabilities = softmax(logits, dim=-1)
-                
-                # Get predicted class and confidence
-                predicted_class_id = torch.argmax(probabilities, dim=-1).item()
-                confidence = torch.max(probabilities, dim=-1)[0].item()
-                
-                # Map to sentiment labels
-                sentiment = self.sentiment_labels[predicted_class_id]
-                
-                # Convert to polarity score (-1 to 1)
-                if sentiment == 'positive':
-                    polarity = 0.5 + (confidence - 0.33) * 0.5 / 0.67  # Scale to 0.5-1.0
-                elif sentiment == 'negative':
-                    polarity = -0.5 - (confidence - 0.33) * 0.5 / 0.67  # Scale to -1.0 to -0.5
-                else:  # neutral
-                    polarity = (confidence - 0.33) * 0.5 / 0.67 * (0.5 if predicted_class_id > 1 else -0.5)
-                
-                # Enhance with keyword analysis
-                keyword_score = self._calculate_keyword_score(text)
-                combined_polarity = (polarity + keyword_score * 0.3) / 1.3  # Weight model more heavily
-                
-                return {
-                    'sentiment': sentiment,
-                    'polarity': round(combined_polarity, 3),
-                    'confidence': round(confidence * 100, 1),
-                    'model_prediction': {
-                        'probabilities': {
-                            'negative': round(probabilities[0][0].item(), 3),
-                            'neutral': round(probabilities[0][1].item(), 3),
-                            'positive': round(probabilities[0][2].item(), 3)
-                        }
+                predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+                confidence, predicted_class = torch.max(predictions, dim=1)
+            
+            # Convert to Python values
+            confidence = confidence.cpu().numpy()[0]
+            predicted_class = predicted_class.cpu().numpy()[0]
+            
+            # Get sentiment label
+            sentiment = self.id2label.get(predicted_class, "neutral")
+            
+            # Calculate polarity score (-1 to 1 scale)
+            if sentiment == "positive":
+                polarity = confidence
+            elif sentiment == "negative":
+                polarity = -confidence
+            else:  # neutral
+                polarity = 0.0
+            
+            return {
+                "sentiment": sentiment,
+                "confidence": round(float(confidence) * 100, 2),
+                "polarity": round(float(polarity), 3),
+                "model_prediction": {
+                    "predicted_class": int(predicted_class),
+                    "probabilities": {
+                        label: round(float(prob), 4) 
+                        for label, prob in zip(self.id2label.values(), predictions.cpu().numpy()[0])
                     }
                 }
-                
+            }
+            
         except Exception as e:
-            logger.error(f"Error in DistilBERT analysis: {str(e)}")
-            # Fallback to TextBlob
-            return self._analyze_with_textblob(text)
-    
-    def _analyze_with_textblob(self, cleaned_text):
-        """Fallback analysis using TextBlob (requires TextBlob import)"""
-        try:
-            # Import TextBlob only when needed as fallback
-            from textblob import TextBlob
-            
-            # TextBlob analysis
-            blob = TextBlob(cleaned_text)
-            polarity = blob.sentiment.polarity
-            
-            # Keyword-based enhancement
-            keyword_score = self._calculate_keyword_score(cleaned_text)
-            
-            # Combine TextBlob and keyword scores
-            combined_polarity = (polarity + keyword_score) / 2
-            
-            # Determine sentiment
-            if combined_polarity > 0.1:
-                sentiment = 'positive'
-            elif combined_polarity < -0.1:
-                sentiment = 'negative'
-            else:
-                sentiment = 'neutral'
-            
-            # Calculate confidence based on absolute polarity
-            confidence = min(abs(combined_polarity) * 100, 95)
-            
+            logger.error(f"Error analyzing review: {e}")
             return {
-                'sentiment': sentiment,
-                'polarity': combined_polarity,
-                'confidence': round(confidence, 1)
+                "sentiment": "neutral",
+                "confidence": 0.0,
+                "polarity": 0.0,
+                "error": str(e)
             }
+
+    def analyze_batch_reviews(self, texts: List[str]) -> List[Dict[str, Any]]:
+        """
+        Analyze sentiment for multiple reviews in batch
+        
+        Args:
+            texts: List of review texts to analyze
             
-        except ImportError:
-            logger.error("TextBlob not available for fallback analysis")
-            return {
-                'sentiment': 'neutral',
-                'polarity': 0.0,
-                'confidence': 50.0
-            }
-    
-    def _clean_text(self, text):
-        """Clean and preprocess text for analysis"""
-        if not text:
-            return ""
+        Returns:
+            List of analysis results
+        """
+        if not texts:
+            return []
         
-        # Convert to lowercase
-        text = text.lower()
+        results = []
+        for text in texts:
+            results.append(self.analyze_single_review(text))
         
-        # Remove special characters but keep spaces
-        text = re.sub(r'[^\w\s]', ' ', text)
+        return results
+
+    def analyze_product_reviews(self, reviews: List[str]) -> Dict[str, Any]:
+        """
+        Analyze all reviews for a product and generate summary statistics
         
-        # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text).strip()
+        Args:
+            reviews: List of product reviews
+            
+        Returns:
+            Comprehensive analysis summary
+        """
+        if not reviews:
+            return self._get_empty_analysis()
         
-        return text
-    
-    def _calculate_keyword_score(self, text):
-        """Calculate sentiment score based on keywords"""
-        words = text.split()
+        # Analyze all reviews
+        analyzed_reviews = self.analyze_batch_reviews(reviews)
         
-        positive_count = sum(1 for word in words if word in self.positive_keywords)
-        negative_count = sum(1 for word in words if word in self.negative_keywords)
+        # Calculate statistics
+        sentiments = [result["sentiment"] for result in analyzed_reviews]
+        confidences = [result["confidence"] for result in analyzed_reviews]
+        polarities = [result["polarity"] for result in analyzed_reviews]
         
-        if positive_count + negative_count == 0:
-            return 0.0
-        
-        # Normalize score between -1 and 1
-        total_sentiment_words = positive_count + negative_count
-        score = (positive_count - negative_count) / total_sentiment_words
-        
-        return score
-    
-    def _calculate_overall_sentiment(self, sentiments, polarities, analyzed_reviews):
-        """Calculate overall sentiment statistics"""
-        if not sentiments:
-            return self._get_default_analysis()
-        
-        # Count sentiments
-        sentiment_counts = Counter(sentiments)
-        total_reviews = len(sentiments)
-        
-        positive_count = sentiment_counts.get('positive', 0)
-        negative_count = sentiment_counts.get('negative', 0)
-        neutral_count = sentiment_counts.get('neutral', 0)
+        total_reviews = len(reviews)
+        positive_count = sentiments.count("positive")
+        negative_count = sentiments.count("negative") 
+        neutral_count = sentiments.count("neutral")
         
         # Calculate percentages
-        positive_percent = round((positive_count / total_reviews) * 100, 1)
-        negative_percent = round((negative_count / total_reviews) * 100, 1)
-        neutral_percent = round((neutral_count / total_reviews) * 100, 1)
+        positive_percent = round((positive_count / total_reviews) * 100, 2) if total_reviews > 0 else 0
+        negative_percent = round((negative_count / total_reviews) * 100, 2) if total_reviews > 0 else 0
+        neutral_percent = round((neutral_count / total_reviews) * 100, 2) if total_reviews > 0 else 0
         
         # Determine overall sentiment
-        if positive_count > negative_count and positive_percent > 40:
-            overall_sentiment = 'positive'
-        elif negative_count > positive_count and negative_percent > 30:
-            overall_sentiment = 'negative'
+        if positive_percent > negative_percent and positive_percent > neutral_percent:
+            overall_sentiment = "positive"
+        elif negative_percent > positive_percent and negative_percent > neutral_percent:
+            overall_sentiment = "negative"
         else:
-            overall_sentiment = 'mixed'
+            overall_sentiment = "neutral"
         
-        # Calculate overall polarity score (0-100)
-        if polarities:
-            avg_polarity = statistics.mean(polarities)
-            sentiment_score = round(((avg_polarity + 1) / 2) * 100, 1)
-        else:
-            sentiment_score = 50.0
+        # Calculate average confidence and polarity
+        avg_confidence = round(sum(confidences) / len(confidences), 2) if confidences else 0
+        avg_polarity = round(sum(polarities) / len(polarities), 3) if polarities else 0
         
-        # Extract key insights
-        insights = self._extract_insights(analyzed_reviews)
+        # Generate insights
+        insights = self._generate_insights(analyzed_reviews, overall_sentiment)
         
         return {
-            'overall_sentiment': overall_sentiment,
-            'sentiment_score': sentiment_score,
-            'positive_count': positive_count,
-            'negative_count': negative_count,
-            'neutral_count': neutral_count,
-            'positive_percent': positive_percent,
-            'negative_percent': negative_percent,
-            'neutral_percent': neutral_percent,
-            'total_reviews_analyzed': total_reviews,
-            'insights': insights,
-            'sample_reviews': {
-                'positive': self._get_sample_reviews(analyzed_reviews, 'positive', 3),
-                'negative': self._get_sample_reviews(analyzed_reviews, 'negative', 3),
-                'neutral': self._get_sample_reviews(analyzed_reviews, 'neutral', 2)
-            }
+            "overall_sentiment": overall_sentiment,
+            "sentiment_score": avg_polarity,
+            "total_reviews": total_reviews,
+            "positive_count": positive_count,
+            "negative_count": negative_count,
+            "neutral_count": neutral_count,
+            "positive_percent": positive_percent,
+            "negative_percent": negative_percent,
+            "neutral_percent": neutral_percent,
+            "average_confidence": avg_confidence,
+            "average_polarity": avg_polarity,
+            "sentiment_distribution": {
+                "positive": positive_percent,
+                "negative": negative_percent,
+                "neutral": neutral_percent
+            },
+            "insights": insights,
+            "analyzed_reviews": analyzed_reviews
         }
-    
-    def _extract_insights(self, analyzed_reviews):
-        """Extract key insights from reviews"""
-        insights = {
-            'common_positive_themes': [],
-            'common_negative_themes': [],
-            'confidence_metrics': {}
-        }
+
+    def _generate_insights(self, analyzed_reviews: List[Dict], overall_sentiment: str) -> List[str]:
+        """Generate insights based on analysis results"""
+        insights = []
         
-        try:
-            positive_reviews = [r for r in analyzed_reviews if r['sentiment'] == 'positive']
-            negative_reviews = [r for r in analyzed_reviews if r['sentiment'] == 'negative']
-            
-            # Extract common themes from positive reviews
+        positive_reviews = [r for r in analyzed_reviews if r["sentiment"] == "positive"]
+        negative_reviews = [r for r in analyzed_reviews if r["sentiment"] == "negative"]
+        
+        if overall_sentiment == "positive":
             if positive_reviews:
-                positive_text = ' '.join([r['text'] for r in positive_reviews])
-                insights['common_positive_themes'] = self._extract_themes(positive_text, self.positive_keywords)
-            
-            # Extract common themes from negative reviews
+                avg_confidence = sum(r["confidence"] for r in positive_reviews) / len(positive_reviews)
+                insights.append(f"Strong positive sentiment with {avg_confidence:.1f}% average confidence")
+                insights.append(f"{len(positive_reviews)} out of {len(analyzed_reviews)} reviews are positive")
+                
+        elif overall_sentiment == "negative":
             if negative_reviews:
-                negative_text = ' '.join([r['text'] for r in negative_reviews])
-                insights['common_negative_themes'] = self._extract_themes(negative_text, self.negative_keywords)
-            
-            # Calculate confidence metrics
-            confidences = [r['confidence'] for r in analyzed_reviews if r['confidence']]
-            if confidences:
-                insights['confidence_metrics'] = {
-                    'average_confidence': round(statistics.mean(confidences), 1),
-                    'high_confidence_reviews': len([c for c in confidences if c > 80])
-                }
+                avg_confidence = sum(r["confidence"] for r in negative_reviews) / len(negative_reviews)
+                insights.append(f"Strong negative sentiment with {avg_confidence:.1f}% average confidence")
+                insights.append(f"{len(negative_reviews)} out of {len(analyzed_reviews)} reviews express concerns")
+        else:
+            insights.append("Mixed customer opinions with no clear sentiment direction")
+            insights.append("Consider analyzing specific aspects for improvement")
         
-        except Exception as e:
-            logger.error(f"Error extracting insights: {str(e)}")
+        # Add confidence-based insight
+        high_confidence_reviews = [r for r in analyzed_reviews if r["confidence"] > 80]
+        if high_confidence_reviews:
+            insights.append(f"{len(high_confidence_reviews)} reviews have high confidence (>80%) predictions")
         
         return insights
-    
-    def _extract_themes(self, text, keywords):
-        """Extract common themes from text"""
-        words = text.lower().split()
-        theme_counts = Counter()
-        
-        for word in words:
-            if word in keywords:
-                theme_counts[word] += 1
-        
-        # Return top 5 themes
-        return [{'theme': theme, 'count': count} for theme, count in theme_counts.most_common(5)]
-    
-    def _get_sample_reviews(self, analyzed_reviews, sentiment, limit):
-        """Get sample reviews for a specific sentiment"""
-        matching_reviews = [r for r in analyzed_reviews if r['sentiment'] == sentiment]
-        return matching_reviews[:limit]
-    
-    def _get_default_analysis(self):
-        """Return default analysis when no reviews available"""
+
+    def _get_empty_analysis(self) -> Dict[str, Any]:
+        """Return empty analysis structure"""
         return {
-            'overall_sentiment': 'neutral',
-            'sentiment_score': 50.0,
-            'positive_count': 0,
-            'negative_count': 0,
-            'neutral_count': 0,
-            'positive_percent': 0.0,
-            'negative_percent': 0.0,
-            'neutral_percent': 0.0,
-            'total_reviews_analyzed': 0,
-            'insights': {
-                'common_positive_themes': [],
-                'common_negative_themes': [],
-                'confidence_metrics': {}
+            "overall_sentiment": "neutral",
+            "sentiment_score": 0.0,
+            "total_reviews": 0,
+            "positive_count": 0,
+            "negative_count": 0,
+            "neutral_count": 0,
+            "positive_percent": 0.0,
+            "negative_percent": 0.0,
+            "neutral_percent": 100.0,
+            "average_confidence": 0.0,
+            "average_polarity": 0.0,
+            "sentiment_distribution": {
+                "positive": 0.0,
+                "negative": 0.0,
+                "neutral": 100.0
             },
-            'sample_reviews': {
-                'positive': [],
-                'negative': [],
-                'neutral': []
-            }
+            "insights": ["No reviews available for analysis"],
+            "analyzed_reviews": []
         }
-    
-    def get_sentiment_summary(self, analysis_result):
-        """Generate a human-readable sentiment summary"""
-        if not analysis_result:
-            return "No analysis available"
+
+    def get_sentiment_summary(self, analysis: Dict[str, Any]) -> str:
+        """Generate a human-readable summary of the analysis"""
+        overall = analysis["overall_sentiment"]
+        score = analysis["sentiment_score"]
         
-        total_reviews = analysis_result.get('total_reviews_analyzed', 0)
-        overall_sentiment = analysis_result.get('overall_sentiment', 'neutral')
-        sentiment_score = analysis_result.get('sentiment_score', 50)
-        
-        if total_reviews == 0:
-            return "No reviews available for analysis"
-        
-        summary_parts = []
-        
-        # Overall sentiment
-        if overall_sentiment == 'positive':
-            summary_parts.append(f"Overall positive sentiment with {sentiment_score}% satisfaction")
-        elif overall_sentiment == 'negative':
-            summary_parts.append(f"Overall negative sentiment with {sentiment_score}% satisfaction")
+        if overall == "positive" and score > 0.7:
+            return "Highly positive customer feedback"
+        elif overall == "positive":
+            return "Generally positive customer feedback"
+        elif overall == "negative" and score < -0.7:
+            return "Strongly negative customer feedback"
+        elif overall == "negative":
+            return "Generally negative customer feedback"
         else:
-            summary_parts.append(f"Mixed sentiment with {sentiment_score}% satisfaction")
-        
-        # Review breakdown
-        pos_percent = analysis_result.get('positive_percent', 0)
-        neg_percent = analysis_result.get('negative_percent', 0)
-        
-        summary_parts.append(f"Based on {total_reviews} reviews: {pos_percent}% positive, {neg_percent}% negative")
-        
-        return ". ".join(summary_parts) + "."
+            return "Mixed customer feedback with neutral overall sentiment"
+
+# Global instance
+sentiment_analyzer = None
+
+def initialize_sentiment_analyzer():
+    """Initialize the global sentiment analyzer instance"""
+    global sentiment_analyzer
+    try:
+        sentiment_analyzer = SentimentAnalyzer()
+        return True
+    except Exception as e:
+        logger.error(f"Failed to initialize sentiment analyzer: {e}")
+        return False

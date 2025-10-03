@@ -71,8 +71,27 @@ if not os.path.exists('data'):
 
 # Initialize the sentiment analyzer with trained DistilBERT model
 try:
-    sentiment_analyzer = SentimentAnalyzer()
-    print("✅ Sentiment analyzer initialized successfully")
+    # Try different paths for the sentiment model
+    possible_model_paths = [
+        "./sentiment_model",
+        "../sentiment_model", 
+        "./backend/sentiment_model"
+    ]
+    
+    sentiment_analyzer = None
+    for model_path in possible_model_paths:
+        try:
+            if os.path.exists(model_path):
+                sentiment_analyzer = SentimentAnalyzer(model_path)
+                print(f"✅ Sentiment analyzer initialized from: {model_path}")
+                break
+        except Exception as e:
+            print(f"❌ Failed to load from {model_path}: {e}")
+            continue
+    
+    if sentiment_analyzer is None:
+        print("⚠️  Could not load trained model, using fallback analysis")
+        
 except Exception as e:
     print(f"❌ Error initializing sentiment analyzer: {e}")
     print("⚠️  Falling back to TextBlob-based analysis")
@@ -371,7 +390,7 @@ def verify_token():
     except Exception as e:
         return jsonify({'valid': False, 'error': str(e)}), 500
 
-# EXISTING SCRAPING FUNCTIONS (keep as they are)
+# EXISTING SCRAPING FUNCTIONS
 def scrape_snapdeal_products(category, max_products=20):
     """
     Scrape products from Snapdeal for a given category
@@ -631,70 +650,6 @@ def generate_category_mock_data(category, max_products=20):
                 "discount": "40% off",
                 "image_url": "https://via.placeholder.com/300x300?text=Denim+Shirt"
             }
-        ],
-        "appliances-juicer-mixer-grinders": [
-            {
-                "title": "Philips HL7756 Mixer Grinder",
-                "price": 7999,
-                "discount": "25% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Philips+Mixer"
-            },
-            {
-                "title": "Preethi Blue Leaf Diamond 750W",
-                "price": 6499,
-                "discount": "30% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Preethi+Mixer"
-            },
-            {
-                "title": "Bajaj Rex Mixer Grinder 500W",
-                "price": 3299,
-                "discount": "35% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Bajaj+Mixer"
-            },
-            {
-                "title": "Sujata Powermatic Plus 900W",
-                "price": 8999,
-                "discount": "20% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Sujata+Mixer"
-            },
-            {
-                "title": "Butterfly Smart 750W Mixer",
-                "price": 4799,
-                "discount": "40% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Butterfly+Mixer"
-            }
-        ],
-        "womens-footwear-sandal": [
-            {
-                "title": "Women's Comfort Flat Sandals",
-                "price": 599,
-                "discount": "70% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Flat+Sandals"
-            },
-            {
-                "title": "Ethnic Block Heel Sandals",
-                "price": 899,
-                "discount": "60% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Block+Heel"
-            },
-            {
-                "title": "Casual Strappy Sandals",
-                "price": 749,
-                "discount": "55% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Strappy+Sandals"
-            },
-            {
-                "title": "Designer Wedge Sandals",
-                "price": 1299,
-                "discount": "45% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Wedge+Sandals"
-            },
-            {
-                "title": "Kolhapuri Style Sandals",
-                "price": 799,
-                "discount": "50% off",
-                "image_url": "https://via.placeholder.com/300x300?text=Kolhapuri+Sandals"
-            }
         ]
     }
     
@@ -775,44 +730,36 @@ def scrape_product_reviews(product_link, max_reviews=10):
     return mock_reviews[:max_reviews]
 
 def analyze_sentiment(text):
-    """Analyze sentiment using trained DistilBERT model or TextBlob fallback"""
+    """Analyze sentiment using your trained model"""
     try:
-        if sentiment_analyzer is not None:
-            # Use trained DistilBERT model
-            analysis = sentiment_analyzer.analyze_single_review(text)
+        if sentiment_analyzer is None:
+            # Fallback if model not loaded
             return {
-                "sentiment": analysis['sentiment'],
-                "score": round(((analysis['polarity'] + 1) / 2) * 100, 1),
-                "confidence": analysis['confidence'],
-                "polarity": analysis['polarity'],
-                "model_prediction": analysis.get('model_prediction', {})
+                "sentiment": "neutral",
+                "score": 50.0,
+                "confidence": 50.0,
+                "polarity": 0.0,
+                "error": "Model not available"
             }
-        else:
-            # Fallback to TextBlob
-            from textblob import TextBlob
-            blob = TextBlob(text)
-            polarity = blob.sentiment.polarity
-            
-            if polarity > 0.1:
-                sentiment = "positive"
-            elif polarity < -0.1:
-                sentiment = "negative"
-            else:
-                sentiment = "neutral"
-            
-            return {
-                "sentiment": sentiment,
-                "score": round((polarity + 1) * 50, 1),
-                "confidence": min(abs(polarity) * 100, 95),
-                "polarity": polarity
-            }
+        
+        # Use your trained model
+        analysis = sentiment_analyzer.analyze_single_review(text)
+        
+        return {
+            "sentiment": analysis["sentiment"],
+            "score": analysis["confidence"],  # Using confidence as score
+            "confidence": analysis["confidence"],
+            "polarity": analysis["polarity"],
+            "model_prediction": analysis.get("model_prediction", {})
+        }
     except Exception as e:
         print(f"Error in sentiment analysis: {e}")
         return {
             "sentiment": "neutral", 
             "score": 50.0,
             "confidence": 50.0,
-            "polarity": 0.0
+            "polarity": 0.0,
+            "error": str(e)
         }
 
 def calculate_sentiment_summary(analyzed_reviews):
@@ -836,7 +783,7 @@ def calculate_sentiment_summary(analyzed_reviews):
         "neutral": round(neutral, 1)
     }
 
-# EXISTING ROUTES (keep all your existing routes as they are)
+# EXISTING ROUTES
 @app.route('/')
 def home():
     """Serve basic info about the API"""
@@ -874,9 +821,7 @@ def health_check():
         "timestamp": datetime.now().isoformat()
     })
 
-# MODIFY EXISTING ROUTES TO INCLUDE AUTHENTICATION (optional - add @token_required if needed)
 @app.route('/api/scrape-products', methods=['POST'])
-# @token_required  # Uncomment this if you want to require authentication
 def api_scrape_products():
     """API endpoint to scrape products"""
     try:
@@ -919,7 +864,6 @@ def api_scrape_products():
         print(f"Error in api_scrape_products: {e}")
         return jsonify({"success": False, "error": f"Failed to scrape products: {str(e)}"}), 500
 
-# ... (keep all your other existing routes exactly as they are)
 @app.route('/api/scrape-reviews', methods=['POST'])
 def api_scrape_reviews():
     """API endpoint to scrape reviews for a single product"""
@@ -974,9 +918,10 @@ def api_scrape_reviews():
         print(f"Error in api_scrape_reviews: {e}")
         return jsonify({"success": False, "error": f"Failed to scrape reviews: {str(e)}"}), 500
 
+# SINGLE VERSION OF ANALYZE-SENTIMENT ROUTE (REMOVED DUPLICATE)
 @app.route('/api/analyze-sentiment', methods=['POST'])
 def api_analyze_sentiment():
-    """API endpoint to analyze sentiment of reviews for a single product"""
+    """API endpoint to analyze sentiment using your trained model"""
     try:
         data = request.get_json()
         if not data:
@@ -1000,40 +945,46 @@ def api_analyze_sentiment():
                 "error": "No reviews provided for analysis"
             }), 400
         
-        print(f"Analyzing sentiment for: {product_title}")
+        print(f"Analyzing sentiment using trained model for: {product_title}")
         
-        # Analyze sentiment for each review
-        analyzed_reviews = []
-        for review in reviews:
-            review_text = review.get('text', '') if isinstance(review, dict) else str(review)
-            sentiment_result = analyze_sentiment(review_text)
+        # Use your trained model for batch analysis
+        if sentiment_analyzer is not None:
+            full_analysis = sentiment_analyzer.analyze_product_reviews(
+                [review.get('text', '') if isinstance(review, dict) else str(review) for review in reviews]
+            )
+        else:
+            # Fallback to individual analysis
+            analyzed_reviews = []
+            for review in reviews:
+                review_text = review.get('text', '') if isinstance(review, dict) else str(review)
+                sentiment_result = analyze_sentiment(review_text)
+                
+                analyzed_reviews.append({
+                    "review": review_text,
+                    "rating": review.get('rating', 'No rating') if isinstance(review, dict) else 'No rating',
+                    "sentiment": sentiment_result,
+                    "analyzed_at": datetime.now().isoformat()
+                })
             
-            analyzed_reviews.append({
-                "review": review_text,
-                "rating": review.get('rating', 'No rating') if isinstance(review, dict) else 'No rating',
-                "sentiment": sentiment_result,
-                "analyzed_at": datetime.now().isoformat()
-            })
-        
-        # Calculate sentiment summary
-        sentiment_summary = calculate_sentiment_summary(analyzed_reviews)
-        
-        # Determine overall sentiment
-        overall_sentiment = "neutral"
-        if sentiment_summary["positive"] > sentiment_summary["negative"] and sentiment_summary["positive"] > 40:
-            overall_sentiment = "positive"
-        elif sentiment_summary["negative"] > sentiment_summary["positive"] and sentiment_summary["negative"] > 40:
-            overall_sentiment = "negative"
+            # Calculate summary from individual results
+            sentiment_summary = calculate_sentiment_summary(analyzed_reviews)
+            full_analysis = {
+                "analyzed_reviews": analyzed_reviews,
+                "sentiment_summary": sentiment_summary,
+                "overall_sentiment": sentiment_summary.get("overall_sentiment", "neutral"),
+                "total_reviews": len(analyzed_reviews)
+            }
         
         # Prepare analysis result
         analysis_result = {
             "product_id": product_id,
             "product_title": product_title,
             "product_url": product_url,
-            "analyzed_reviews": analyzed_reviews,
-            "sentiment_summary": sentiment_summary,
-            "overall_sentiment": overall_sentiment,
-            "total_reviews": len(analyzed_reviews),
+            "analyzed_reviews": full_analysis.get("analyzed_reviews", []),
+            "sentiment_summary": full_analysis.get("sentiment_summary", {}),
+            "overall_sentiment": full_analysis.get("overall_sentiment", "neutral"),
+            "total_reviews": len(reviews),
+            "model_used": "trained_distilbert" if sentiment_analyzer else "textblob_fallback",
             "analyzed_at": datetime.now().isoformat()
         }
         
@@ -1046,7 +997,7 @@ def api_analyze_sentiment():
             "success": True,
             "analysis": analysis_result,
             "file_saved": filename,
-            "message": f"Successfully analyzed sentiment for {len(analyzed_reviews)} reviews"
+            "message": f"Successfully analyzed sentiment for {len(reviews)} reviews using trained model"
         })
         
     except Exception as e:
@@ -1084,41 +1035,20 @@ def api_complete_analysis():
                 "error": "No reviews found for this product"
             }), 404
         
-        # Step 2: Analyze sentiment
-        # Analyze sentiment for each review
-        analyzed_reviews = []
-        for review in reviews:
-            review_text = review.get('text', '') if isinstance(review, dict) else str(review)
-            sentiment_result = analyze_sentiment(review_text)
-            
-            analyzed_reviews.append({
-                "review": review_text,
-                "rating": review.get('rating', 'No rating') if isinstance(review, dict) else 'No rating',
-                "sentiment": sentiment_result,
-                "analyzed_at": datetime.now().isoformat()
-            })
+        # Step 2: Analyze sentiment using the unified analyze-sentiment endpoint
+        analysis_response = api_analyze_sentiment()
         
-        # Calculate sentiment summary
-        sentiment_summary = calculate_sentiment_summary(analyzed_reviews)
+        if analysis_response[1] != 200:  # Check if analysis failed
+            return analysis_response
         
-        # Determine overall sentiment
-        overall_sentiment = "neutral"
-        if sentiment_summary["positive"] > sentiment_summary["negative"] and sentiment_summary["positive"] > 40:
-            overall_sentiment = "positive"
-        elif sentiment_summary["negative"] > sentiment_summary["positive"] and sentiment_summary["negative"] > 40:
-            overall_sentiment = "negative"
+        # Extract the analysis data from the response
+        analysis_data = analysis_response[0].get_json()
         
-        # Prepare analysis result
-        analysis_result = {
-            "product_id": product_id,
-            "product_title": product_title,
-            "product_url": product_url,
-            "analyzed_reviews": analyzed_reviews,
-            "sentiment_summary": sentiment_summary,
-            "overall_sentiment": overall_sentiment,
-            "total_reviews": len(analyzed_reviews),
-            "analyzed_at": datetime.now().isoformat()
-        }
+        if not analysis_data.get('success'):
+            return jsonify({
+                "success": False,
+                "error": analysis_data.get('error', 'Analysis failed')
+            }), 500
         
         # Prepare complete result
         complete_result = {
@@ -1126,7 +1056,7 @@ def api_complete_analysis():
             "product_title": product_title,
             "product_url": product_url,
             "reviews": reviews,
-            "analysis": analysis_result,
+            "analysis": analysis_data.get('analysis', {}),
             "analysis_id": f"analysis_{product_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "scraped_at": datetime.now().isoformat(),
             "analyzed_at": datetime.now().isoformat(),
