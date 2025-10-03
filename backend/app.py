@@ -919,6 +919,8 @@ def api_scrape_reviews():
         return jsonify({"success": False, "error": f"Failed to scrape reviews: {str(e)}"}), 500
 
 # SINGLE VERSION OF ANALYZE-SENTIMENT ROUTE (REMOVED DUPLICATE)
+# Fixed api_analyze_sentiment route in backend/app.py
+
 @app.route('/api/analyze-sentiment', methods=['POST'])
 def api_analyze_sentiment():
     """API endpoint to analyze sentiment using your trained model"""
@@ -947,43 +949,50 @@ def api_analyze_sentiment():
         
         print(f"Analyzing sentiment using trained model for: {product_title}")
         
-        # Use your trained model for batch analysis
-        if sentiment_analyzer is not None:
-            full_analysis = sentiment_analyzer.analyze_product_reviews(
-                [review.get('text', '') if isinstance(review, dict) else str(review) for review in reviews]
-            )
-        else:
-            # Fallback to individual analysis
-            analyzed_reviews = []
-            for review in reviews:
-                review_text = review.get('text', '') if isinstance(review, dict) else str(review)
-                sentiment_result = analyze_sentiment(review_text)
-                
-                analyzed_reviews.append({
-                    "review": review_text,
-                    "rating": review.get('rating', 'No rating') if isinstance(review, dict) else 'No rating',
-                    "sentiment": sentiment_result,
-                    "analyzed_at": datetime.now().isoformat()
-                })
+        analyzed_reviews = []
+        sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
+        
+        # Analyze each review
+        for review in reviews:
+            review_text = review.get('text', '') if isinstance(review, dict) else str(review)
             
-            # Calculate summary from individual results
-            sentiment_summary = calculate_sentiment_summary(analyzed_reviews)
-            full_analysis = {
-                "analyzed_reviews": analyzed_reviews,
-                "sentiment_summary": sentiment_summary,
-                "overall_sentiment": sentiment_summary.get("overall_sentiment", "neutral"),
-                "total_reviews": len(analyzed_reviews)
-            }
+            if not review_text:
+                continue
+                
+            sentiment_result = analyze_sentiment(review_text)
+            
+            # Count sentiments
+            sentiment_label = sentiment_result.get("sentiment", "neutral")
+            sentiment_counts[sentiment_label] = sentiment_counts.get(sentiment_label, 0) + 1
+            
+            analyzed_reviews.append({
+                "review": review_text,
+                "rating": review.get('rating', 'No rating') if isinstance(review, dict) else 'No rating',
+                "sentiment": sentiment_result,
+                "analyzed_at": datetime.now().isoformat()
+            })
+        
+        # Calculate percentages
+        total_reviews = len(analyzed_reviews)
+        sentiment_summary = {
+            "positive": round((sentiment_counts["positive"] / total_reviews) * 100, 1) if total_reviews > 0 else 0,
+            "negative": round((sentiment_counts["negative"] / total_reviews) * 100, 1) if total_reviews > 0 else 0,
+            "neutral": round((sentiment_counts["neutral"] / total_reviews) * 100, 1) if total_reviews > 0 else 0
+        }
+        
+        # Determine overall sentiment
+        max_sentiment = max(sentiment_summary.items(), key=lambda x: x[1])
+        overall_sentiment = max_sentiment[0]
         
         # Prepare analysis result
         analysis_result = {
             "product_id": product_id,
             "product_title": product_title,
             "product_url": product_url,
-            "analyzed_reviews": full_analysis.get("analyzed_reviews", []),
-            "sentiment_summary": full_analysis.get("sentiment_summary", {}),
-            "overall_sentiment": full_analysis.get("overall_sentiment", "neutral"),
-            "total_reviews": len(reviews),
+            "analyzed_reviews": analyzed_reviews,
+            "sentiment_summary": sentiment_summary,
+            "overall_sentiment": overall_sentiment,
+            "total_reviews": total_reviews,
             "model_used": "trained_distilbert" if sentiment_analyzer else "textblob_fallback",
             "analyzed_at": datetime.now().isoformat()
         }
@@ -997,12 +1006,17 @@ def api_analyze_sentiment():
             "success": True,
             "analysis": analysis_result,
             "file_saved": filename,
-            "message": f"Successfully analyzed sentiment for {len(reviews)} reviews using trained model"
+            "message": f"Successfully analyzed sentiment for {total_reviews} reviews"
         })
         
     except Exception as e:
         print(f"Error in api_analyze_sentiment: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "error": f"Failed to analyze sentiment: {str(e)}"}), 500
+
+
+# Fixed api_complete_analysis route
 
 @app.route('/api/complete-analysis', methods=['POST'])
 def api_complete_analysis():
@@ -1035,20 +1049,37 @@ def api_complete_analysis():
                 "error": "No reviews found for this product"
             }), 404
         
-        # Step 2: Analyze sentiment using the unified analyze-sentiment endpoint
-        analysis_response = api_analyze_sentiment()
+        # Step 2: Analyze sentiment directly (don't call the endpoint)
+        analyzed_reviews = []
+        sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
         
-        if analysis_response[1] != 200:  # Check if analysis failed
-            return analysis_response
+        for review in reviews:
+            review_text = review.get('text', '') if isinstance(review, dict) else str(review)
+            
+            if not review_text:
+                continue
+                
+            sentiment_result = analyze_sentiment(review_text)
+            sentiment_label = sentiment_result.get("sentiment", "neutral")
+            sentiment_counts[sentiment_label] = sentiment_counts.get(sentiment_label, 0) + 1
+            
+            analyzed_reviews.append({
+                "review": review_text,
+                "rating": review.get('rating', 'No rating') if isinstance(review, dict) else 'No rating',
+                "sentiment": sentiment_result,
+                "analyzed_at": datetime.now().isoformat()
+            })
         
-        # Extract the analysis data from the response
-        analysis_data = analysis_response[0].get_json()
+        # Calculate summary
+        total_reviews = len(analyzed_reviews)
+        sentiment_summary = {
+            "positive": round((sentiment_counts["positive"] / total_reviews) * 100, 1) if total_reviews > 0 else 0,
+            "negative": round((sentiment_counts["negative"] / total_reviews) * 100, 1) if total_reviews > 0 else 0,
+            "neutral": round((sentiment_counts["neutral"] / total_reviews) * 100, 1) if total_reviews > 0 else 0
+        }
         
-        if not analysis_data.get('success'):
-            return jsonify({
-                "success": False,
-                "error": analysis_data.get('error', 'Analysis failed')
-            }), 500
+        max_sentiment = max(sentiment_summary.items(), key=lambda x: x[1])
+        overall_sentiment = max_sentiment[0]
         
         # Prepare complete result
         complete_result = {
@@ -1056,11 +1087,13 @@ def api_complete_analysis():
             "product_title": product_title,
             "product_url": product_url,
             "reviews": reviews,
-            "analysis": analysis_data.get('analysis', {}),
+            "analyzed_reviews": analyzed_reviews,
+            "sentiment_summary": sentiment_summary,
+            "overall_sentiment": overall_sentiment,
             "analysis_id": f"analysis_{product_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "scraped_at": datetime.now().isoformat(),
             "analyzed_at": datetime.now().isoformat(),
-            "total_reviews": len(reviews)
+            "total_reviews": total_reviews
         }
         
         # Save complete result
@@ -1072,13 +1105,16 @@ def api_complete_analysis():
             "success": True,
             "analysis": complete_result,
             "file_saved": filename,
-            "message": f"Successfully completed analysis for {len(reviews)} reviews"
+            "message": f"Successfully completed analysis for {total_reviews} reviews"
         })
         
     except Exception as e:
         print(f"Error in api_complete_analysis: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "error": f"Failed to complete analysis: {str(e)}"}), 500
-
+    
+    
 @app.route('/api/products', methods=['GET'])
 @app.route('/api/products/<category>', methods=['GET'])
 def api_get_products(category=None):
