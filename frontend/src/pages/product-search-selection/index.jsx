@@ -1,5 +1,4 @@
 // snapdeal_sentiment_analyzer/src/pages/product-search-selection/index.jsx
-// snapdeal_sentiment_analyzer/src/pages/product-search-selection/index.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
@@ -12,23 +11,21 @@ import ApiService from '../../services/api';
 const ProductSearchSelection = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentCategory, setCurrentCategory] = useState(null); // Track current search category
+  const [currentCategory, setCurrentCategory] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [showBulkSelect, setShowBulkSelect] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingType, setProcessingType] = useState(null); // 'scraping' or 'analyzing'
+  const [processingType, setProcessingType] = useState(null);
   const [products, setProducts] = useState([]);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Load products from file on component mount
   useEffect(() => {
     loadProductsFromFile();
   }, []);
 
-  // Clear messages after timeout
   useEffect(() => {
     if (error || successMessage) {
       const timer = setTimeout(() => {
@@ -39,17 +36,14 @@ const ProductSearchSelection = () => {
     }
   }, [error, successMessage]);
 
-  // Load products from API or fallback to local JSON
   const loadProductsFromFile = async () => {
     try {
       setIsSearching(true);
       setError(null);
       
-      // First try to load from API
       const response = await ApiService.loadSavedProducts();
       
       if (response.success && response.products.length > 0) {
-        // Transform the data to match our expected format
         const transformedProducts = response.products.map((product, index) => ({
           id: product.id || `product-${index}`,
           title: product.title,
@@ -65,10 +59,9 @@ const ProductSearchSelection = () => {
         
         setProducts(transformedProducts);
         setSearchQuery('Loaded from API');
-        setCurrentCategory(null); // Clear category since loading from API
+        setCurrentCategory(null);
         setSuccessMessage(`Loaded ${transformedProducts.length} products from server`);
       } else {
-        // Fallback to local JSON file
         const localResponse = await fetch('/data/products.json');
         const data = await localResponse.json();
         
@@ -86,7 +79,7 @@ const ProductSearchSelection = () => {
         
         setProducts(transformedProducts);
         setSearchQuery('Loaded from products.json');
-        setCurrentCategory(null); // Clear category since loading from JSON
+        setCurrentCategory(null);
         setSuccessMessage(`Loaded ${transformedProducts.length} products from local file`);
       }
     } catch (error) {
@@ -98,26 +91,41 @@ const ProductSearchSelection = () => {
     }
   };
 
-  // Handle search for new products
   const handleSearch = async (query) => {
-    setIsSearching(true);
-    setSearchQuery(query);
-    setCurrentCategory(query); // Set current category for refresh
-    setError(null);
-    setSuccessMessage(null);
+  setIsSearching(true);
+  setSearchQuery(query);
+  setCurrentCategory(query);
+  setError(null);
+  setSuccessMessage(null);
+  
+  try {
+    console.log('🔍 Searching for products:', query);
     
-    try {
-      console.log('Searching for products:', query);
-      
-      // Call the API service to scrape products
-      const response = await ApiService.scrapeProducts(query, 20);
-      
-      if (response.success && response.products && response.products.length > 0) {
-        // Transform scraped products to match our component format
-        const transformedProducts = response.products.map((product, index) => ({
-          id: product.id || `scraped-${Date.now()}-${index}`,
+    const response = await ApiService.scrapeProducts(query, 20);
+    console.log('📦 Raw API response:', response);
+    
+    if (response.success && response.products && response.products.length > 0) {
+      const transformedProducts = response.products.map((product, index) => {
+        // Debug each product structure
+        console.log(`📋 Product ${index}:`, {
+          id: product.id,
           title: product.title,
           link: product.link,
+          price: product.price,
+          image_url: product.image_url,
+          hasLink: !!product.link,
+          rawProduct: product
+        });
+        
+        // Validate required fields
+        if (!product.link) {
+          console.warn(`❌ Product ${index} missing link:`, product);
+        }
+        
+        return {
+          id: product.id || `scraped-${Date.now()}-${index}`,
+          title: product.title || 'No title available',
+          link: product.link, // This is REQUIRED for scraping
           price: product.price,
           imageUrl: product.image_url,
           discount: product.discount,
@@ -125,33 +133,40 @@ const ProductSearchSelection = () => {
           reviews: product.reviews || [],
           sentiment: product.sentiment || null,
           lastUpdated: product.scraped_at ? new Date(product.scraped_at).toLocaleDateString() : new Date().toLocaleDateString()
-        }));
-        
-        setProducts(transformedProducts);
-        setSuccessMessage(`Successfully found ${transformedProducts.length} products for "${query}"`);
-        console.log(`Successfully loaded ${transformedProducts.length} products`);
-      } else {
-        // Handle case where no products found
-        console.warn('No products found:', response.error);
-        setError(`No products found for "${query}". Please try a different category.`);
+        };
+      });
+      
+      // Check how many products have valid links
+      const productsWithLinks = transformedProducts.filter(p => p.link);
+      console.log(`✅ Valid products with links: ${productsWithLinks.length}/${transformedProducts.length}`);
+      
+      if (productsWithLinks.length === 0) {
+        console.error('❌ No products have valid links!');
+        setError(`Found ${transformedProducts.length} products but none have valid links for scraping.`);
         setProducts([]);
+      } else {
+        setProducts(transformedProducts);
+        setSuccessMessage(`Successfully found ${transformedProducts.length} products for "${query}" (${productsWithLinks.length} with valid links)`);
+        console.log(`✅ Successfully loaded ${transformedProducts.length} products`);
       }
-    } catch (error) {
-      console.error('Search failed:', error);
-      setError(`Failed to search for products: ${error.message}`);
+    } else {
+      console.warn('❌ No products found in response:', response);
+      setError(`No products found for "${query}". Please try a different category.`);
       setProducts([]);
-    } finally {
-      setIsSearching(false);
     }
-  };
+  } catch (error) {
+    console.error('❌ Search failed:', error);
+    setError(`Failed to search for products: ${error.message}`);
+    setProducts([]);
+  } finally {
+    setIsSearching(false);
+  }
+};
 
-  // Handle refresh - either refresh current category or load from file
   const handleRefresh = async () => {
     if (currentCategory) {
-      // If we have a current category, refresh that category
       await handleSearch(currentCategory);
     } else {
-      // Otherwise, load from API/JSON file
       await loadProductsFromFile();
     }
   };
@@ -172,51 +187,78 @@ const ProductSearchSelection = () => {
     setSelectedProducts([]);
   };
 
-  const handleProductAnalyze = async (product, action) => {
-    if (action === 'scrape') {
-      // Scrape reviews for single product
-      try {
-        setIsProcessing(true);
-        setProcessingType('scraping');
-        setError(null);
-        
-        const response = await ApiService.scrapeReviews([product.id], [product]);
-        
-        if (response.success) {
-          // Update the product with scraped reviews
-          setProducts(prev => prev.map(p => {
-            if (p.id === product.id) {
-              const updatedProduct = response.results.find(r => r.id === product.id);
-              return updatedProduct ? {
-                ...p,
-                reviews: updatedProduct.reviews || []
-              } : p;
-            }
-            return p;
-          }));
-          
-          setSuccessMessage(`Successfully scraped reviews for "${product.title}"`);
-        } else {
-          setError(`Failed to scrape reviews: ${response.error}`);
-        }
-        
-      } catch (error) {
-        console.error('Failed to scrape reviews:', error);
-        setError('Failed to scrape reviews. Please try again.');
-      } finally {
-        setIsProcessing(false);
-        setProcessingType(null);
-      }
-    } else if (action === 'sentiment') {
-      // Analyze sentiment for single product
-      navigate('/sentiment-analysis-processing', { 
-        state: { 
-          products: [product],
-          mode: 'single'
-        } 
+ const handleProductAnalyze = async (product, action) => {
+  if (action === 'scrape') {
+    try {
+      setIsProcessing(true);
+      setProcessingType('scraping');
+      setError(null);
+      
+      console.log('🔄 Scraping product:', {
+        id: product.id,
+        title: product.title,
+        link: product.link,
+        hasLink: !!product.link
       });
+      
+      // Validate product has link
+      if (!product.link) {
+        setError('Product is missing link. Cannot scrape reviews.');
+        return;
+      }
+      
+      const response = await ApiService.scrapeReviews(
+        [product.id], 
+        [{
+          id: product.id,
+          title: product.title,
+          link: product.link
+        }]
+      );
+      
+      console.log('📨 Scrape response:', response);
+      
+      if (response.success && response.results && response.results.length > 0) {
+        const result = response.results[0];
+        console.log('📊 Scrape result:', {
+          success: result.success,
+          reviewsCount: result.reviews?.length,
+          productId: result.id
+        });
+        
+        setProducts(prev => prev.map(p => {
+          if (p.id === product.id) {
+            console.log(`🔄 Updating ${p.id} with ${result.reviews?.length || 0} reviews`);
+            return {
+              ...p,
+              reviews: result.reviews || []
+            };
+          }
+          return p;
+        }));
+        
+        setSuccessMessage(`Successfully scraped ${result.reviews?.length || 0} reviews for "${product.title}"`);
+      } else {
+        console.error('❌ Scrape failed:', response);
+        setError(`Failed to scrape reviews: ${response.error || 'Unknown error'}`);
+      }
+      
+    } catch (error) {
+      console.error('💥 Exception during scrape:', error);
+      setError('Failed to scrape reviews. Please try again.');
+    } finally {
+      setIsProcessing(false);
+      setProcessingType(null);
     }
-  };
+  } else if (action === 'sentiment') {
+    navigate('/sentiment-analysis-processing', { 
+      state: { 
+        products: [product],
+        mode: 'single'
+      } 
+    });
+  }
+};
 
   const handleBulkScrape = async () => {
     const selectedProductData = products.filter(p => 
@@ -228,11 +270,9 @@ const ProductSearchSelection = () => {
     setError(null);
     
     try {
-      // Start bulk scraping
       const response = await ApiService.scrapeReviews(selectedProducts, selectedProductData);
       
       if (response.success) {
-        // Update products with scraped reviews
         setProducts(prev => prev.map(p => {
           if (selectedProducts.includes(p.id)) {
             const updatedProduct = response.results.find(r => r.id === p.id);
@@ -246,7 +286,6 @@ const ProductSearchSelection = () => {
         
         setSuccessMessage(`Successfully scraped reviews for ${selectedProducts.length} products`);
         
-        // Navigate to processing page
         navigate('/review-scraping-processing', { 
           state: { 
             products: selectedProductData,
@@ -271,7 +310,6 @@ const ProductSearchSelection = () => {
       selectedProducts.includes(p.id)
     );
     
-    // Check if selected products have reviews
     const productsWithReviews = selectedProductData.filter(p => p.reviews && p.reviews.length > 0);
     
     if (productsWithReviews.length === 0) {
@@ -284,13 +322,11 @@ const ProductSearchSelection = () => {
     setError(null);
     
     try {
-      // Start analysis
       const response = await ApiService.analyzeSentiment(selectedProducts, selectedProductData);
       
       if (response.success) {
         setSuccessMessage(`Successfully started sentiment analysis for ${selectedProducts.length} products`);
         
-        // Navigate to processing page
         navigate('/sentiment-analysis-processing', { 
           state: { 
             products: selectedProductData,
@@ -323,7 +359,6 @@ const ProductSearchSelection = () => {
         onSearchClick={() => document.querySelector('input[type="search"]')?.focus()}
       />
       <main className="pt-16">
-        {/* Hero Section */}
         <div className="bg-gradient-to-br from-primary/5 to-accent/5 border-b border-border">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
             <div className="text-center mb-8">
@@ -335,7 +370,6 @@ const ProductSearchSelection = () => {
               </p>
             </div>
 
-            {/* Search Bar */}
             <SearchBar
               onSearch={handleSearch}
               searchQuery={searchQuery}
@@ -346,7 +380,6 @@ const ProductSearchSelection = () => {
           </div>
         </div>
 
-        {/* Alert Messages */}
         {(error || successMessage) && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
             {error && (
@@ -380,9 +413,7 @@ const ProductSearchSelection = () => {
           </div>
         )}
 
-        {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Toolbar */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-4">
               <h2 className="text-xl font-semibold text-foreground">
@@ -399,7 +430,6 @@ const ProductSearchSelection = () => {
             </div>
 
             <div className="flex items-center space-x-2">
-              {/* View Toggle */}
               <div className="flex rounded-lg border border-border overflow-hidden">
                 <Button
                   variant={viewMode === 'grid' ? 'default' : 'ghost'}
@@ -435,7 +465,6 @@ const ProductSearchSelection = () => {
             </div>
           </div>
 
-          {/* Bulk Action Bar */}
           {showBulkSelect && (
             <BulkActionBar
               selectedCount={selectedProducts.length}
@@ -450,19 +479,17 @@ const ProductSearchSelection = () => {
             />
           )}
 
-          {/* Products Display */}
           {viewMode === 'grid' ? (
             <ProductGrid
-            products={products}
-            selectedProducts={selectedProducts}
-            onProductSelect={handleProductSelect}
-            onProductAnalyze={handleProductAnalyze}
-            showBulkSelect={showBulkSelect}
-            isLoading={isSearching}
-            viewMode={viewMode}
-          />
+              products={products}
+              selectedProducts={selectedProducts}
+              onProductSelect={handleProductSelect}
+              onProductAnalyze={handleProductAnalyze}
+              showBulkSelect={showBulkSelect}
+              isLoading={isSearching}
+              viewMode={viewMode}
+            />
           ) : (
-            /* List View */
             <div className="space-y-4">
               {products.length === 0 && !isSearching && (
                 <div className="text-center py-12">
@@ -553,7 +580,6 @@ const ProductSearchSelection = () => {
             </div>
           )}
 
-          {/* Refresh Button */}
           {products.length > 0 && !isSearching && (
             <div className="text-center mt-8">
               <Button
@@ -571,7 +597,6 @@ const ProductSearchSelection = () => {
         </div>
       </main>
 
-      {/* Floating Action Button for Mobile */}
       {selectedProducts.length > 0 && (
         <div className="fixed bottom-6 right-6 lg:hidden z-40 flex flex-col space-y-2">
           <Button

@@ -12,7 +12,7 @@ import random
 import os
 import re
 from datetime import datetime, timedelta
-
+from scrape_products import scrape_product_reviews_selenium
 # Import the custom sentiment analyzer
 from analyzer.sentiment_analyzer import SentimentAnalyzer
 
@@ -696,38 +696,16 @@ def generate_category_mock_data(category, max_products=20):
     print(f"Generated {len(products)} mock products for category: {category}")
     return products
 
-def scrape_product_reviews(product_link, max_reviews=10):
-    """Scrape reviews for a specific product - mock implementation"""
-    # Return mock reviews for testing
-    mock_reviews = [
-        {
-            "rating": "5/5",
-            "text": "Excellent product! The camera quality is outstanding and battery life is amazing.",
-            "scraped_at": datetime.now().isoformat()
-        },
-        {
-            "rating": "4/5",
-            "text": "Good value for money. Performance is smooth but could have better software support.",
-            "scraped_at": datetime.now().isoformat()
-        },
-        {
-            "rating": "3/5",
-            "text": "Average product. Build quality is decent but not exceptional for the price.",
-            "scraped_at": datetime.now().isoformat()
-        },
-        {
-            "rating": "2/5",
-            "text": "Disappointing. Battery drains quickly and camera performance is poor in low light.",
-            "scraped_at": datetime.now().isoformat()
-        },
-        {
-            "rating": "5/5",
-            "text": "Absolutely fantastic! Would highly recommend to anyone looking for a premium smartphone.",
-            "scraped_at": datetime.now().isoformat()
-        }
-    ]
-    
-    return mock_reviews[:max_reviews]
+def scrape_product_reviews(product_link, max_reviews=50):
+    """
+    Scrape reviews for a specific product using Selenium
+    """
+    try:
+        reviews = scrape_product_reviews_selenium(product_link, max_reviews)
+        return reviews
+    except Exception as e:
+        print(f"Error scraping reviews: {e}")
+        return []
 
 def analyze_sentiment(text):
     """Analyze sentiment using trained model"""
@@ -882,58 +860,134 @@ def api_scrape_products():
 
 @app.route('/api/scrape-reviews', methods=['POST'])
 def api_scrape_reviews():
-    """API endpoint to scrape reviews for a single product"""
+    """API endpoint to scrape reviews for products"""
     try:
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "error": "No JSON data provided"}), 400
         
-        # Extract product information
-        product_id = data.get('product_id', '')
-        product_title = data.get('product_title', '')
-        product_url = data.get('product_url', '')
-        max_reviews = data.get('max_reviews', 50)
+        # Get products array
+        products = data.get('products', [])
+        product_ids = data.get('product_ids', [])
         
-        if not all([product_id, product_title, product_url]):
+        if not products:
             return jsonify({
                 "success": False, 
-                "error": "product_id, product_title, and product_url are required"
+                "error": "products array is required"
             }), 400
         
-        print(f"Scraping reviews for: {product_title}")
+        print(f"\n{'='*70}")
+        print(f"Scraping reviews for {len(products)} product(s)")
+        print(f"{'='*70}\n")
         
-        # Scrape reviews
-        reviews = scrape_product_reviews(product_url, max_reviews)
+        # Import the scraping function
+        from scrape_products import setup_driver, scrape_product_reviews_selenium
         
-        if not reviews:
-            return jsonify({
-                "success": False,
-                "error": "No reviews found for this product"
-            }), 404
+        # Create a single browser instance
+        driver = setup_driver()
         
-        # Save to JSON file
-        filename = f"data/reviews_{product_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        results = []
+        total_reviews = 0
+        
+        try:
+            for idx, product in enumerate(products, 1):
+                product_id = product.get('id', '')
+                product_title = product.get('title', 'Unknown Product')
+                product_url = product.get('link', '')
+                
+                if not product_url:
+                    print(f"[{idx}/{len(products)}] Skipping {product_title} - no URL")
+                    results.append({
+                        "id": product_id,
+                        "title": product_title,
+                        "reviews": [],
+                        "error": "No product URL provided"
+                    })
+                    continue
+                
+                print(f"[{idx}/{len(products)}] Scraping: {product_title[:60]}...")
+                
+                try:
+                    # Scrape reviews using the shared driver
+                    reviews = scrape_product_reviews_selenium(
+                        product_url, 
+                        max_reviews=50, 
+                        driver=driver
+                    )
+                    
+                    if reviews:
+                        print(f"  ✓ Found {len(reviews)} reviews")
+                        total_reviews += len(reviews)
+                    else:
+                        print(f"  ✗ No reviews found")
+                    
+                    results.append({
+                        "id": product_id,
+                        "title": product_title,
+                        "url": product_url,
+                        "reviews": reviews,
+                        "review_count": len(reviews),
+                        "scraped_at": datetime.now().isoformat()
+                    })
+                    
+                except Exception as scrape_error:
+                    print(f"  ✗ Error scraping product: {scrape_error}")
+                    results.append({
+                        "id": product_id,
+                        "title": product_title,
+                        "url": product_url,
+                        "reviews": [],
+                        "review_count": 0,
+                        "error": str(scrape_error),
+                        "scraped_at": datetime.now().isoformat()
+                    })
+                
+                # Small delay between products
+                if idx < len(products):
+                    time.sleep(2)
+        
+        finally:
+            # Always close the driver
+            driver.quit()
+            print(f"\n{'='*70}")
+            print(f"SCRAPING COMPLETED")
+            print(f"{'='*70}")
+            print(f"Products processed: {len(results)}")
+            print(f"Total reviews: {total_reviews}")
+            print(f"{'='*70}\n")
+        
+        # Save results to file
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"data/reviews_bulk_{timestamp}.json"
+        
+        save_data = {
+            "scraped_at": datetime.now().isoformat(),
+            "total_products": len(results),
+            "total_reviews": total_reviews,
+            "results": results
+        }
+        
         with open(filename, "w", encoding="utf-8") as f:
-            json.dump({
-                "product_id": product_id,
-                "product_title": product_title,
-                "product_url": product_url,
-                "reviews": reviews,
-                "scraped_at": datetime.now().isoformat()
-            }, f, indent=4, ensure_ascii=False)
+            json.dump(save_data, f, indent=2, ensure_ascii=False)
         
         return jsonify({
             "success": True,
-            "reviews": reviews,
-            "total_reviews": len(reviews),
+            "results": results,
+            "total_products": len(results),
+            "total_reviews": total_reviews,
             "file_saved": filename,
-            "message": f"Successfully scraped {len(reviews)} reviews"
+            "message": f"Successfully scraped {total_reviews} reviews from {len(results)} products"
         })
         
     except Exception as e:
-        print(f"Error in api_scrape_reviews: {e}")
-        return jsonify({"success": False, "error": f"Failed to scrape reviews: {str(e)}"}), 500
-
+        print(f"\n❌ Error in api_scrape_reviews: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False, 
+            "error": f"Failed to scrape reviews: {str(e)}"
+        }), 500
+      
 # SINGLE VERSION OF ANALYZE-SENTIMENT ROUTE (REMOVED DUPLICATE)
 # Fixed api_analyze_sentiment route in backend/app.py
 
@@ -942,6 +996,8 @@ def api_analyze_sentiment():
     try:
         data = request.get_json()
         reviews = data.get('reviews', [])
+        
+        print(f"📊 Analyzing {len(reviews)} reviews")
         
         if not reviews:
             return jsonify({
@@ -952,9 +1008,8 @@ def api_analyze_sentiment():
         analyzed = []
         counts = {"positive": 0, "negative": 0, "neutral": 0}
         
-        for review in reviews:
-            text = review.get('text', '') if isinstance(review, dict) else str(review)
-            if not text:
+        for i, text in enumerate(reviews):
+            if not text or not isinstance(text, str):
                 continue
             
             result = analyze_sentiment(text)
@@ -962,7 +1017,6 @@ def api_analyze_sentiment():
             
             analyzed.append({
                 "review": text,
-                "rating": review.get('rating', 'N/A') if isinstance(review, dict) else 'N/A',
                 "sentiment": result
             })
         
@@ -979,19 +1033,19 @@ def api_analyze_sentiment():
                 "analyzed_reviews": analyzed,
                 "sentiment_summary": summary,
                 "total_reviews": total,
-                "overall_sentiment": max(summary.items(), key=lambda x: x[1])[0]
-            }
+                "overall_sentiment": max(summary.items(), key=lambda x: x[1])[0] if total > 0 else "neutral"
+            },
+            "message": f"Analyzed {total} reviews"
         })
         
     except Exception as e:
-        print(f"ERROR: {e}")
+        print(f"ERROR in analyze-sentiment: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
             "success": False,
             "error": str(e)
         }), 500
-
 # Fixed api_complete_analysis route
 
 @app.route('/api/complete-analysis', methods=['POST'])

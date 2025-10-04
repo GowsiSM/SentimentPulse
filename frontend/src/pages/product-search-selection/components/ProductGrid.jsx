@@ -51,7 +51,25 @@ const ProductGrid = ({
       </div>
     );
   }
+const testScrapeAPI = async () => {
+  const testProduct = {
+    id: "test-1",
+    title: "STI Poly Cotton Regular Fit Shirt",
+    link: "https://www.snapdeal.com/product/sti-poly-cotton-regular-fit/8646911907841541232"
+  };
+  
+  console.log('Testing scrape with:', testProduct);
+  
+  const response = await ApiService.scrapeReviews(
+    [testProduct.id], 
+    [testProduct]
+  );
+  
+  console.log('Test response:', response);
+};
 
+// Add this button temporarily
+<button onClick={testScrapeAPI}>TEST SCRAPE API</button>
   if (products?.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">

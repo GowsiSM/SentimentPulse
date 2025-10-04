@@ -1,289 +1,446 @@
-"""
-Snapdeal Scraper with Selenium for JavaScript-rendered reviews
-Install: pip install selenium webdriver-manager
-"""
-
+# scrape_products.py - Complete working version
+import time
+import json
+import sys
+from datetime import datetime
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-from bs4 import BeautifulSoup
-import time
-import json
-import random
-from datetime import datetime
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 def setup_driver():
-    """Setup Chrome driver with appropriate options"""
-    chrome_options = Options()
-    chrome_options.add_argument('--headless')  # Run in background
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    """Setup Chrome driver with proper options"""
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(options=options)
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
 
-def scrape_reviews_selenium(driver, product_url, max_reviews=10):
-    """Scrape reviews using Selenium to handle JavaScript"""
-    reviews = []
+def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
+    """Scrape reviews using Selenium - FIXED VERSION"""
+    should_quit = driver is None
+    if driver is None:
+        driver = setup_driver()
     
     try:
-        print(f"  Loading page with Selenium: {product_url[:60]}...")
+        print(f"Loading: {product_url[:70]}...")
         driver.get(product_url)
+        time.sleep(3)
         
-        # Wait for reviews section to load
-        try:
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.ID, "defaultReviewsCard"))
-            )
-            print("  ✓ Reviews card loaded")
-        except:
-            print("  ⚠ Reviews card not found or timed out")
-            return reviews
+        # Click reviews tab - MULTIPLE SELECTORS
+        review_tab_clicked = False
+        tab_selectors = [
+            "a[href='#reviews']",
+            "#reviewsContainer",
+            ".ratingTab",
+            "li.ratingTab a"
+        ]
         
-        # Scroll to reviews section to trigger lazy loading
-        reviews_card = driver.find_element(By.ID, "defaultReviewsCard")
-        driver.execute_script("arguments[0].scrollIntoView(true);", reviews_card)
-        time.sleep(2)  # Wait for content to load
-        
-        # Get page source and parse with BeautifulSoup
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        
-        # Find reviews section
-        reviews_card = soup.find(id="defaultReviewsCard")
-        if not reviews_card:
-            print("  No reviews card in parsed HTML")
-            return reviews
-        
-        # Find all review containers
-        review_containers = reviews_card.find_all(class_="commentreview")
-        
-        if not review_containers:
-            # Try finding by other classes
-            review_containers = reviews_card.find_all("div", recursive=True)
-            review_containers = [r for r in review_containers if "user-review" in str(r.get("class", []))]
-        
-        print(f"  Found {len(review_containers)} review containers")
-        
-        for idx, review_container in enumerate(review_containers[:max_reviews]):
+        for selector in tab_selectors:
             try:
-                # Extract review text
-                review_text = None
+                reviews_tab = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                )
+                driver.execute_script("arguments[0].scrollIntoView(true);", reviews_tab)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", reviews_tab)
+                print(f"✓ Clicked reviews tab using: {selector}")
+                review_tab_clicked = True
+                time.sleep(3)  # Wait for reviews to load
+                break
+            except:
+                continue
+        
+        if not review_tab_clicked:
+            print("✗ Could not click reviews tab")
+            return []
+        
+        # Wait for reviews container with multiple possible selectors
+        reviews_found = False
+        container_selectors = [
+            "#reviewsContainer",
+            ".user-review",
+            ".review-container",
+            "[class*='review']"
+        ]
+        
+        for selector in container_selectors:
+            try:
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                )
+                print(f"✓ Found reviews container: {selector}")
+                reviews_found = True
+                break
+            except:
+                continue
+        
+        if not reviews_found:
+            print("✗ Reviews container not found")
+            return []
+        
+        # Scroll to load more reviews
+        for _ in range(3):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+        
+        # Get all review items - TRY MULTIPLE SELECTORS
+        # In scrape_products.py - Replace the review extraction section starting from line 95
+
+        # Get all review items - TRY MULTIPLE SELECTORS
+        review_items = []
+        review_selectors = [
+            ".user-review",
+            ".reviewCard",
+            ".review-card",
+            "[class*='review-item']",
+            "[class*='user-review']",
+            "#reviewsContainer > div",
+            ".review",
+            ".review-entry",
+            ".reviewdata",
+            ".reviewtext"
+        ]
+        
+        for selector in review_selectors:
+            review_items = driver.find_elements(By.CSS_SELECTOR, selector)
+            if len(review_items) > 0:
+                print(f"✓ Found {len(review_items)} review elements using: {selector}")
+                break
+        
+        if not review_items:
+            print("✗ No review items found")
+            # Try alternative approach - look for any divs that might contain reviews
+            all_divs = driver.find_elements(By.CSS_SELECTOR, "#reviewsContainer div")
+            review_items = [div for div in all_divs if len(div.text.strip()) > 50]  # Text length filter
+            print(f"✓ Found {len(review_items)} review elements using alternative approach")
+        
+        if not review_items:
+            print("✗ No review items found after all attempts")
+            return []
+        
+        reviews = []
+        for i, item in enumerate(review_items[:max_reviews], 1):
+            try:
+                # Extract review text - IMPROVED SELECTORS FOR SNAPDEAL
+                review_text = ""
+                text_selectors = [
+                    ".user-review .review-text",
+                    ".user-review-text",
+                    ".reviewText",
+                    ".review-text",
+                    ".reviewdesc",
+                    ".rvw-desc",
+                    ".review-content",
+                    ".reviewdata",
+                    "p",
+                    "span",
+                    "div"
+                ]
                 
-                # Method 1: Look for user-review class
-                user_review = review_container.find(class_="user-review")
-                if user_review:
-                    # Try multiple text container classes
-                    for class_name in ["LTgray", "grey-div", "hf-review", "reviewText"]:
-                        text_elem = user_review.find(class_=class_name)
-                        if text_elem:
-                            review_text = text_elem.get_text(strip=True)
-                            if len(review_text) > 10:
+                for selector in text_selectors:
+                    try:
+                        text_elements = item.find_elements(By.CSS_SELECTOR, selector)
+                        for text_elem in text_elements:
+                            text = text_elem.text.strip()
+                            # More lenient text validation for Snapdeal
+                            if text and len(text) > 20 and any(word in text.lower() for word in 
+                                                              ['good', 'nice', 'quality', 'product', 'like', 'recommend', 
+                                                               'happy', 'bad', 'poor', 'worst', 'not good', 'disappointed']):
+                                review_text = text
                                 break
+                        if review_text:
+                            break
+                    except:
+                        continue
                 
-                # Method 2: If still no text, get all text from review container
+                # If no text found with selectors, try getting all text from the item
                 if not review_text:
-                    all_text = review_container.get_text(strip=True)
-                    # Filter out common non-review text
-                    if len(all_text) > 20:
+                    all_text = item.text.strip()
+                    # Filter for meaningful review text
+                    if len(all_text) > 30 and len(all_text) < 1000:
                         review_text = all_text
                 
-                if not review_text or len(review_text) < 5:
+                if not review_text or len(review_text) < 20:
+                    print(f"  ✗ Review {i}: Text too short or empty")
                     continue
                 
-                # Extract rating
-                rating = None
-                rating_elem = review_container.find(class_="filled-stars")
-                if rating_elem and rating_elem.get("style"):
-                    import re
-                    width_match = re.search(r'width:\s*(\d+)%', rating_elem.get("style"))
-                    if width_match:
-                        percentage = int(width_match.group(1))
-                        rating = round((percentage / 100) * 5, 1)
+                # Extract rating - IMPROVED FOR SNAPDEAL
+                rating = "No rating"
+                try:
+                    # Snapdeal rating selectors
+                    rating_selectors = [
+                        ".filled-stars",
+                        ".star-rating",
+                        "[class*='rating']",
+                        "[class*='star']",
+                        ".rating"
+                    ]
+                    
+                    for selector in rating_selectors:
+                        try:
+                            rating_elem = item.find_element(By.CSS_SELECTOR, selector)
+                            # Get rating from style attribute or text
+                            style = rating_elem.get_attribute("style") or ""
+                            if "width" in style:
+                                width_match = re.search(r'width:\s*(\d+)%', style)
+                                if width_match:
+                                    width = int(width_match.group(1))
+                                    rating = f"{width/20:.1f}/5"
+                                    break
+                            # Try getting rating from text
+                            rating_text = rating_elem.text.strip()
+                            if rating_text and any(char.isdigit() for char in rating_text):
+                                rating = rating_text
+                                break
+                        except:
+                            continue
+                except Exception as e:
+                    print(f"    Rating extraction failed: {e}")
                 
-                # Extract reviewer name
-                reviewer_name = None
-                name_elem = review_container.find(class_="by")
-                if name_elem:
-                    reviewer_name = name_elem.get_text(strip=True)
-                    if reviewer_name.lower().startswith("by "):
-                        reviewer_name = reviewer_name[3:].strip()
-                
-                # Extract date
-                review_date = None
-                date_elem = review_container.find(class_="date")
-                if date_elem:
-                    review_date = date_elem.get_text(strip=True)
+                # Extract reviewer name and date - IMPROVED FOR SNAPDEAL
+                reviewer = "Anonymous"
+                review_date = "Unknown date"
+                try:
+                    # Look for reviewer info in the item
+                    meta_selectors = [
+                        ".reviewer-name",
+                        ".user-name", 
+                        ".reviewer",
+                        ".by",
+                        ".author",
+                        "[class*='user']",
+                        "[class*='reviewer']"
+                    ]
+                    
+                    for selector in meta_selectors:
+                        try:
+                            meta_elem = item.find_element(By.CSS_SELECTOR, selector)
+                            meta_text = meta_elem.text.strip()
+                            if meta_text:
+                                # Try to parse "by UserName on Date" format
+                                if " on " in meta_text:
+                                    parts = meta_text.split(" on ")
+                                    if len(parts) == 2:
+                                        reviewer = parts[0].replace("by", "").replace("By", "").strip()
+                                        review_date = parts[1].strip()
+                                        break
+                                elif "by" in meta_text.lower():
+                                    reviewer = meta_text.replace("by", "").replace("By", "").strip()
+                                    break
+                                else:
+                                    reviewer = meta_text
+                                    break
+                        except:
+                            continue
+                except Exception as e:
+                    print(f"    Reviewer/date extraction failed: {e}")
                 
                 review_data = {
-                    "text": review_text,
                     "rating": rating,
-                    "reviewer": reviewer_name,
-                    "date": review_date
+                    "text": review_text,
+                    "reviewer": reviewer,
+                    "date": review_date,
+                    "scraped_at": datetime.now().isoformat()
                 }
                 
                 reviews.append(review_data)
-                print(f"  ✓ Review {len(reviews)}: {review_text[:50]}...")
+                print(f"✓ Review {i}: {review_text[:80]}... (Rating: {rating})")
                 
             except Exception as e:
-                print(f"  Error parsing review {idx+1}: {e}")
+                print(f"✗ Error parsing review {i}: {e}")
                 continue
         
+        print(f"✓ Successfully extracted {len(reviews)} reviews")
+        return reviews
+        
     except Exception as e:
-        print(f"  Error with Selenium: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"✗ Error scraping reviews: {e}")
+        return []
     
-    return reviews
+    finally:
+        if should_quit and driver:
+            driver.quit()
 
-def scrape_products_with_reviews(category, max_products=10, max_reviews_per_product=10):
-    """Scrape products and their reviews using Selenium"""
+def debug_page_structure(driver, product_url):
+    """Debug function to save page structure for analysis"""
+    try:
+        # Save page source
+        page_source = driver.page_source
+        with open("debug_page_source.html", "w", encoding="utf-8") as f:
+            f.write(page_source)
+        print("✓ Saved page source to debug_page_source.html")
+        
+        # Take screenshot
+        driver.save_screenshot("debug_screenshot.png")
+        print("✓ Saved screenshot to debug_screenshot.png")
+        
+        # Find all elements with review-related classes/ids
+        review_elements = driver.find_elements(By.CSS_SELECTOR, "[class*='review'], [id*='review'], [class*='comment'], [class*='rating']")
+        print(f"Found {len(review_elements)} elements with review-related attributes")
+        
+        for i, element in enumerate(review_elements[:10]):  # Limit to first 10
+            try:
+                class_attr = element.get_attribute("class") or ""
+                id_attr = element.get_attribute("id") or ""
+                text_preview = element.text[:100] if element.text else "No text"
+                print(f"Element {i+1}: class='{class_attr}' id='{id_attr}'")
+                print(f"  Text: {text_preview}...")
+            except:
+                pass
+                
+    except Exception as e:
+        print(f"Debug error: {e}")
+        
+def scrape_category_products(category, max_products=20):
+    """Scrape products from a category and their reviews"""
+    base_url = f"https://www.snapdeal.com/products/{category}"
     driver = setup_driver()
     products = []
     
+    print("=" * 70)
+    print(f"Scraping category: {category}")
+    print("=" * 70)
+    
     try:
-        base_url = f"https://www.snapdeal.com/products/{category}"
-        
-        print(f"{'='*60}")
-        print(f"Starting scrape for category: {category}")
-        print(f"{'='*60}\n")
-        
-        # First, get product listings (can use requests for this)
-        import requests
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-        
         page = 1
         while len(products) < max_products and page <= 3:
-            try:
-                page_url = f"{base_url}?page={page}"
-                print(f"Fetching product list page {page}...")
-                
-                response = requests.get(page_url, headers=headers, timeout=10)
-                soup = BeautifulSoup(response.text, "html.parser")
-                
-                product_containers = soup.select(".product-tuple-listing")
-                
-                if not product_containers:
+            page_url = f"{base_url}?page={page}"
+            print(f"\nPage {page}: {page_url}")
+            
+            driver.get(page_url)
+            time.sleep(3)
+            
+            # Find product links
+            product_links = driver.find_elements(By.CSS_SELECTOR, "a.dp-widget-link[href*='/product/']")
+            
+            if not product_links:
+                break
+            
+            # Get unique product URLs
+            urls = list(set([link.get_attribute("href") for link in product_links if link.get_attribute("href")]))[:max_products - len(products)]
+            
+            for i, url in enumerate(urls, 1):
+                if len(products) >= max_products:
                     break
                 
-                for product in product_containers:
-                    if len(products) >= max_products:
-                        break
+                try:
+                    # Get product title
+                    driver.get(url)
+                    time.sleep(2)
                     
+                    title = "Unknown Product"
                     try:
-                        title_tag = product.select_one(".product-title")
-                        if not title_tag:
-                            continue
-                        title = title_tag.get_text(strip=True)
-                        
-                        link_tag = product.select_one("a.dp-widget-link")
-                        if not link_tag or not link_tag.get("href"):
-                            continue
-                        
-                        link = link_tag["href"]
-                        if link.startswith("/product/"):
-                            link = "https://www.snapdeal.com" + link
-                        elif not link.startswith("http"):
-                            continue
-                        
-                        # Extract price
-                        price = None
-                        price_tag = product.select_one(".product-price")
-                        if price_tag:
-                            import re
-                            price_match = re.search(r'[\d,]+', price_tag.get_text(strip=True))
-                            if price_match:
-                                try:
-                                    price = int(price_match.group().replace(',', ''))
-                                except ValueError:
-                                    pass
-                        
-                        product_data = {
-                            "id": f"{category}-{len(products)}",
-                            "title": title,
-                            "link": link,
-                            "price": price,
-                            "category": category,
-                            "reviews": [],
-                            "scraped_at": str(datetime.now())
-                        }
-                        
-                        products.append(product_data)
-                        print(f"Product {len(products)}: {title[:50]}...")
-                        
-                        # Now scrape reviews using Selenium
-                        reviews = scrape_reviews_selenium(driver, link, max_reviews_per_product)
-                        product_data["reviews"] = reviews
-                        print(f"  → Scraped {len(reviews)} reviews\n")
-                        
-                        # Small delay between products
-                        time.sleep(random.uniform(1, 2))
-                        
-                    except Exception as e:
-                        print(f"Error with product: {e}")
-                        continue
+                        title_elem = driver.find_element(By.CSS_SELECTOR, "h1.pdp-e-i-head")
+                        title = title_elem.text.strip()
+                    except:
+                        pass
+                    
+                    print(f"\n[{len(products)+1}/{max_products}] {title[:60]}...")
+                    
+                    # Scrape reviews for this product
+                    reviews = scrape_product_reviews_selenium(url, max_reviews=50, driver=driver)
+                    
+                    # Extract other product info
+                    price = None
+                    try:
+                        price_elem = driver.find_element(By.CSS_SELECTOR, "span.payBlkBig")
+                        price_text = price_elem.text.strip().replace("₹", "").replace(",", "")
+                        price = int(price_text)
+                    except:
+                        pass
+                    
+                    image_url = None
+                    try:
+                        img_elem = driver.find_element(By.CSS_SELECTOR, "img.cloudzoom")
+                        image_url = img_elem.get_attribute("src")
+                    except:
+                        pass
+                    
+                    product_data = {
+                        "id": f"{category}-{len(products)}-{int(time.time())}",
+                        "title": title,
+                        "link": url,
+                        "price": price,
+                        "image_url": image_url,
+                        "category": category,
+                        "reviews": reviews,
+                        "sentiment": None,
+                        "scraped_at": datetime.now().isoformat()
+                    }
+                    
+                    products.append(product_data)
+                    print(f"→ {len(reviews)} reviews scraped")
+                    
+                except Exception as e:
+                    print(f"✗ Error scraping product: {e}")
+                    continue
                 
-                page += 1
                 time.sleep(2)
-                
-            except Exception as e:
-                print(f"Error on page {page}: {e}")
-                break
+            
+            page += 1
         
     finally:
         driver.quit()
-        print("\nClosed browser")
     
     return products
 
 def main():
-    import sys
-    
     if len(sys.argv) < 2:
-        print("Usage: python selenium_scraper.py <category> [max_products]")
-        print("Example: python selenium_scraper.py men-apparel-shirts 5")
-        return
+        print("Usage:")
+        print("  python scrape_products.py <category> [max_products]")
+        print("  python scrape_products.py test <product_url>")
+        sys.exit(1)
     
-    category = sys.argv[1]
-    max_products = int(sys.argv[2]) if len(sys.argv) > 2 else 5
-    
-    products = scrape_products_with_reviews(category, max_products, max_reviews_per_product=10)
-    
-    if products:
-        # Save results
-        import os
-        os.makedirs("data", exist_ok=True)
-        filename = f"data/products_with_reviews_{category}_{int(time.time())}.json"
+    if sys.argv[1] == "test":
+        # Test single product
+        url = sys.argv[2]
+        print(f"Testing: {url}")
+        reviews = scrape_product_reviews_selenium(url)
         
+        print("\n" + "=" * 70)
+        print(f"Found {len(reviews)} reviews")
+        print("=" * 70)
+        
+        for i, review in enumerate(reviews, 1):
+            print(f"\n{i}. Rating: {review['rating']}")
+            print(f"   By: {review['reviewer']} on {review['date']}")
+            print(f"   Date: {review['date']}")
+            print(f"   {review['text'][:200]}...")
+        
+        with open("test_reviews.json", "w", encoding="utf-8") as f:
+            json.dump(reviews, f, indent=2, ensure_ascii=False)
+        print(f"\nSaved to test_reviews.json")
+        
+    else:
+        # Scrape category
+        category = sys.argv[1]
+        max_products = int(sys.argv[2]) if len(sys.argv) > 2 else 20
+        
+        products = scrape_category_products(category, max_products)
+        
+        print("\n" + "=" * 70)
+        print("COMPLETED")
+        print("=" * 70)
+        print(f"Products: {len(products)}")
+        print(f"Products with reviews: {sum(1 for p in products if p['reviews'])}")
+        print(f"Total reviews: {sum(len(p['reviews']) for p in products)}")
+        
+        filename = f"data/products_{category}_{int(time.time())}.json"
         with open(filename, "w", encoding="utf-8") as f:
-            json.dump(products, f, indent=4, ensure_ascii=False)
+            json.dump(products, f, indent=2, ensure_ascii=False)
         
-        print(f"\n{'='*60}")
-        print(f"Saved {len(products)} products to {filename}")
-        
-        total_reviews = sum(len(p["reviews"]) for p in products)
-        print(f"Total reviews: {total_reviews}")
-        print(f"{'='*60}")
-        
-        # Show sample
-        print("\n📦 Sample Product with Reviews:")
-        for p in products:
-            if p["reviews"]:
-                print(f"\n{p['title'][:60]}...")
-                print(f"Price: ₹{p['price']}")
-                print(f"Reviews ({len(p['reviews'])}):")
-                for i, r in enumerate(p['reviews'][:3], 1):
-                    print(f"  {i}. ⭐ {r.get('rating', 'N/A')}/5")
-                    print(f"     {r['text'][:80]}...")
-                break
+        print(f"Saved to: {filename}")
 
 if __name__ == "__main__":
     main()

@@ -3,61 +3,58 @@ import ApiService from './api';
 
 class SentimentService {
   /**
-   * Analyze product reviews using the trained model
-   */
-  async analyzeProductSentiment(productId, productTitle, productUrl, reviews) {
-    try {
-      const response = await ApiService.analyzeProductReviews(
-        productId,
-        productTitle,
-        productUrl,
-        reviews
-      );
-
-      if (response.success) {
-        return {
-          success: true,
-          analysis: response.analysis || response,
-          message: response.message || 'Sentiment analysis completed successfully'
-        };
-      } else {
-        return {
-          success: false,
-          error: response.error || 'Failed to analyze sentiment'
-        };
-      }
-    } catch (error) {
-      console.error('Error in sentiment analysis:', error);
-      return {
-        success: false,
-        error: error.message || 'Network error during sentiment analysis'
-      };
-    }
-  }
-
-  /**
    * Complete workflow: scrape reviews and analyze sentiment
    */
-  async completeAnalysis(productId, productTitle, productUrl, maxReviews = 50) {
+  async completeAnalysis(product, maxReviews = 50) {
     try {
-      const response = await ApiService.completeProductAnalysis(
-        productId,
-        productTitle,
-        productUrl,
+      console.log('🔄 Starting complete analysis for:', product.title);
+      
+      // Step 1: Scrape reviews first
+      const scrapeResult = await this.scrapeReviews(
+        product.id,
+        product.title,
+        product.link,
         maxReviews
       );
 
-      if (response.success) {
+      if (!scrapeResult.success) {
         return {
-          success: true,
-          analysis: response.analysis || response,
-          stats: response.stats || this._extractStatsFromAnalysis(response.analysis || response),
-          message: response.message || 'Complete analysis finished successfully'
+          success: false,
+          error: scrapeResult.error || 'Failed to scrape reviews'
         };
+      }
+
+      // Step 2: Analyze sentiment if we have reviews
+      if (scrapeResult.reviews && scrapeResult.reviews.length > 0) {
+        const analyzeResult = await this.analyzeProductSentiment(
+          product.id,
+          product.title,
+          product.link,
+          scrapeResult.reviews
+        );
+
+        if (analyzeResult.success) {
+          return {
+            success: true,
+            product: {
+              ...product,
+              reviews: scrapeResult.reviews,
+              sentiment_analysis: analyzeResult.analysis,
+              analysis_timestamp: new Date().toISOString()
+            },
+            stats: this._extractStatsFromAnalysis(analyzeResult.analysis),
+            message: 'Complete analysis finished successfully'
+          };
+        } else {
+          return {
+            success: false,
+            error: analyzeResult.error || 'Sentiment analysis failed'
+          };
+        }
       } else {
         return {
           success: false,
-          error: response.error || 'Failed to complete analysis'
+          error: 'No reviews found to analyze'
         };
       }
     } catch (error) {
@@ -70,22 +67,83 @@ class SentimentService {
   }
 
   /**
+ * Analyze product reviews using the trained model
+ */
+async analyzeProductSentiment(productId, productTitle, productUrl, reviews) {
+  try {
+    console.log('📊 Analyzing sentiment for:', productTitle);
+    console.log('📝 Reviews to analyze:', reviews);
+    
+    // Extract just the review texts for sentiment analysis
+    const reviewTexts = reviews.map(review => {
+      if (typeof review === 'string') {
+        return review;
+      }
+      return review.text || review.review || '';
+    }).filter(text => text && text.trim().length > 0);
+    
+    console.log('📋 Review texts extracted:', reviewTexts.length);
+    
+    if (reviewTexts.length === 0) {
+      return {
+        success: false,
+        error: 'No valid review texts found for analysis'
+      };
+    }
+    
+    // Send the reviews array directly to the API
+    const response = await ApiService.request('/analyze-sentiment', {
+      method: 'POST',
+      body: JSON.stringify({
+        reviews: reviewTexts
+      })
+    });
+
+    if (response.success) {
+      return {
+        success: true,
+        analysis: response.analysis || response,
+        message: response.message || 'Sentiment analysis completed successfully'
+      };
+    } else {
+      return {
+        success: false,
+        error: response.error || 'Failed to analyze sentiment'
+      };
+    }
+  } catch (error) {
+    console.error('Error in sentiment analysis:', error);
+    return {
+      success: false,
+      error: error.message || 'Network error during sentiment analysis'
+    };
+  }
+}
+
+  /**
    * Scrape reviews for a product
    */
   async scrapeReviews(productId, productTitle, productUrl, maxReviews = 50) {
     try {
-      const response = await ApiService.scrapeReviewsForProduct(
-        productId,
-        productTitle,
-        productUrl,
-        maxReviews
+      console.log('📥 Scraping reviews for:', productTitle);
+      
+      const response = await ApiService.scrapeReviews(
+        [productId],
+        [{
+          id: productId,
+          title: productTitle,
+          link: productUrl
+        }]
       );
 
       if (response.success) {
+        // Find the specific product result
+        const productResult = response.results?.find(r => r.id === productId);
+        
         return {
           success: true,
-          reviews: response.reviews || [],
-          total_reviews: response.total_reviews || (response.reviews ? response.reviews.length : 0),
+          reviews: productResult?.reviews || [],
+          total_reviews: productResult?.reviews?.length || 0,
           message: response.message || 'Reviews scraped successfully'
         };
       } else {
@@ -104,56 +162,97 @@ class SentimentService {
   }
 
   /**
-   * Get analysis history
+   * Analyze sentiment for a single product (simplified version)
    */
-  async getAnalysisHistory() {
+  async analyzeSentiment(product) {
     try {
-      const response = await ApiService.getAnalysisHistory();
-      
+      if (!product.reviews || product.reviews.length === 0) {
+        return {
+          success: false,
+          error: 'No reviews available for analysis'
+        };
+      }
+
+      const response = await ApiService.analyzeSentiment(
+        [product.id],
+        [product]
+      );
+
       if (response.success) {
         return {
           success: true,
-          history: response.history || [],
-          totalCount: response.total_count || (response.history ? response.history.length : 0)
+          analysis: response.results || response,
+          message: response.message || 'Sentiment analysis completed'
         };
       } else {
         return {
           success: false,
-          error: response.error || 'Failed to fetch analysis history'
+          error: response.error || 'Analysis failed'
         };
       }
     } catch (error) {
-      console.error('Error fetching analysis history:', error);
+      console.error('Error in sentiment analysis:', error);
       return {
         success: false,
-        error: error.message || 'Network error fetching analysis history'
+        error: error.message || 'Network error during analysis'
       };
     }
   }
 
   /**
-   * Get detailed analysis by ID
+   * Save analysis to localStorage for offline access
    */
-  async getAnalysisDetail(analysisId) {
+  saveToLocalStorage(result) {
     try {
-      const response = await ApiService.getAnalysisDetail(analysisId);
-      
-      if (response.success) {
-        return {
-          success: true,
-          analysis: response.analysis
-        };
-      } else {
-        return {
-          success: false,
-          error: response.error || 'Analysis not found'
-        };
-      }
+      const key = `sentiment_analysis_${result.product?.id || Date.now()}`;
+      localStorage.setItem(key, JSON.stringify(result));
+      console.log('💾 Saved analysis to localStorage:', key);
     } catch (error) {
-      console.error('Error fetching analysis detail:', error);
+      console.error('Error saving to localStorage:', error);
+    }
+  }
+
+  /**
+   * Load analysis from localStorage
+   */
+  loadFromLocalStorage(productId) {
+    try {
+      const key = `sentiment_analysis_${productId}`;
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      console.error('Error loading from localStorage:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get analysis history from localStorage
+   */
+  getAnalysisHistory() {
+    try {
+      const history = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sentiment_analysis_')) {
+          const item = localStorage.getItem(key);
+          if (item) {
+            history.push(JSON.parse(item));
+          }
+        }
+      }
+      return {
+        success: true,
+        history: history,
+        totalCount: history.length
+      };
+    } catch (error) {
+      console.error('Error fetching analysis history:', error);
       return {
         success: false,
-        error: error.message || 'Network error fetching analysis detail'
+        error: error.message,
+        history: [],
+        totalCount: 0
       };
     }
   }
@@ -168,17 +267,39 @@ class SentimentService {
         positive_percentage: 0,
         negative_percentage: 0,
         neutral_percentage: 0,
-        overall_sentiment: 'neutral'
+        overall_sentiment: 'neutral',
+        sentiment_score: 0
       };
     }
 
+    // Handle different response formats
     const summary = analysis.sentiment_summary || analysis;
+    const results = analysis.results || [analysis];
     
+    let totalReviews = summary.total_reviews || 0;
+    let positive = summary.positive_percent || summary.sentiment_distribution?.positive || 0;
+    let negative = summary.negative_percent || summary.sentiment_distribution?.negative || 0;
+    let neutral = summary.neutral_percent || summary.sentiment_distribution?.neutral || 0;
+
+    // If we have individual results, calculate from them
+    if (results.length > 0 && results[0].reviews) {
+      const reviews = results[0].reviews;
+      totalReviews = reviews.length;
+      
+      const sentiments = reviews.map(review => 
+        review.sentiment?.sentiment || review.sentiment || 'neutral'
+      );
+      
+      positive = (sentiments.filter(s => s === 'positive').length / totalReviews) * 100;
+      negative = (sentiments.filter(s => s === 'negative').length / totalReviews) * 100;
+      neutral = (sentiments.filter(s => s === 'neutral').length / totalReviews) * 100;
+    }
+
     return {
-      total_reviews: summary.total_reviews || 0,
-      positive_percentage: summary.positive_percent || summary.sentiment_distribution?.positive || 0,
-      negative_percentage: summary.negative_percent || summary.sentiment_distribution?.negative || 0,
-      neutral_percentage: summary.neutral_percent || summary.sentiment_distribution?.neutral || 0,
+      total_reviews: totalReviews,
+      positive_percentage: Math.round(positive),
+      negative_percentage: Math.round(negative),
+      neutral_percentage: Math.round(neutral),
       overall_sentiment: summary.overall_sentiment || 'neutral',
       sentiment_score: summary.sentiment_score || 0
     };
@@ -270,71 +391,6 @@ class SentimentService {
   }
 
   /**
-   * Get analysis progress (for processing page)
-   */
-  getAnalysisProgress(analysis) {
-    if (!analysis) {
-      return {
-        overallProgress: 0,
-        currentStage: 'initializing',
-        estimatedTimeRemaining: 0,
-        isProcessing: false,
-        isPaused: false
-      };
-    }
-
-    const totalReviews = analysis.total_reviews || 0;
-    const analyzedReviews = analysis.analyzed_reviews?.length || 0;
-    
-    let overallProgress = 0;
-    let currentStage = 'initializing';
-    let estimatedTimeRemaining = 0;
-
-    if (totalReviews > 0) {
-      overallProgress = Math.min(100, Math.round((analyzedReviews / totalReviews) * 100));
-      
-      if (overallProgress < 30) {
-        currentStage = 'scraping';
-        estimatedTimeRemaining = Math.max(30, totalReviews * 2); // seconds
-      } else if (overallProgress < 80) {
-        currentStage = 'analyzing';
-        estimatedTimeRemaining = Math.max(20, Math.round((100 - overallProgress) * 0.5));
-      } else {
-        currentStage = 'generating';
-        estimatedTimeRemaining = Math.max(10, Math.round((100 - overallProgress) * 0.2));
-      }
-    }
-
-    return {
-      overallProgress,
-      currentStage,
-      estimatedTimeRemaining,
-      isProcessing: overallProgress < 100,
-      isPaused: false
-    };
-  }
-
-  /**
-   * Generate sample preview data for processing page
-   */
-  generateSamplePreview(analyzedReviews, count = 5) {
-    if (!analyzedReviews || !Array.isArray(analyzedReviews)) {
-      return [];
-    }
-
-    return analyzedReviews.slice(0, count).map((review, index) => ({
-      id: `preview-${index}`,
-      reviewer: `Customer ${index + 1}`,
-      rating: Math.floor(Math.random() * 5) + 1,
-      date: new Date().toLocaleDateString(),
-      text: review.review || review.text || 'No review text available',
-      sentiment: review.sentiment?.sentiment || review.sentiment || 'neutral',
-      confidence: review.sentiment?.confidence || 75,
-      model: review.sentiment?.model_used || 'trained_distilbert'
-    }));
-  }
-
-  /**
    * Process multiple products in batch
    */
   async processMultipleProducts(products, action = 'analyze') {
@@ -352,24 +408,7 @@ class SentimentService {
             50
           );
         } else if (action === 'analyze') {
-          // First scrape reviews, then analyze
-          const scrapeResult = await this.scrapeReviews(
-            product.id,
-            product.title,
-            product.link,
-            50
-          );
-          
-          if (scrapeResult.success && scrapeResult.reviews.length > 0) {
-            result = await this.analyzeProductSentiment(
-              product.id,
-              product.title,
-              product.link,
-              scrapeResult.reviews
-            );
-          } else {
-            result = scrapeResult;
-          }
+          result = await this.completeAnalysis(product, 50);
         }
         
         results.push({

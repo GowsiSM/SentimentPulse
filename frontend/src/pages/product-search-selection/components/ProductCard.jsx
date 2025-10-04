@@ -58,43 +58,49 @@ const ProductCard = ({
     }
   };
 
-  const handleScrapeReviews = async () => {
-    if (!product?.link) {
-      alert('Product link is required for scraping reviews');
-      return;
+const handleScrapeReviews = async () => {
+  if (!product?.link) {
+    alert('Product link is required for scraping reviews');
+    return;
+  }
+
+  setIsProcessing(true);
+  setProcessingStep('Scraping reviews...');
+
+  try {
+    console.log('🔄 Starting complete analysis for product:', product.title);
+    
+    // Use the corrected completeAnalysis method
+    const result = await sentimentService.completeAnalysis(product);
+
+    console.log('📊 Analysis result:', result);
+
+    if (result.success) {
+      // Save to localStorage for offline access
+      sentimentService.saveToLocalStorage(result);
+
+      console.log('✅ Analysis successful, navigating to dashboard');
+      
+      // Navigate to dashboard with the analysis data
+      navigate('/reports-analytics', {
+        state: {
+          analysisData: result.product,
+          analysisStats: result.stats,
+          productInfo: product
+        }
+      });
+    } else {
+      console.error('❌ Analysis failed:', result.error);
+      throw new Error(result.error || 'Analysis failed');
     }
-
-    setIsProcessing(true);
-    setProcessingStep('Scraping reviews...');
-
-    try {
-      // Step 1: Scrape reviews and analyze sentiment in one go
-      setProcessingStep('Analyzing sentiment...');
-      const result = await sentimentService.completeAnalysis(product);
-
-      if (result.success) {
-        // Save to localStorage for offline access
-        sentimentService.saveToLocalStorage(result);
-
-        // Navigate to dashboard with the analysis data
-        navigate('/sentiment-visualization-dashboard', {
-          state: {
-            analysisData: result.product,
-            analysisStats: result.stats,
-            productInfo: product
-          }
-        });
-      } else {
-        throw new Error('Analysis failed');
-      }
-    } catch (error) {
-      console.error('Error in sentiment analysis:', error);
-      alert(`Failed to analyze sentiment: ${error.message}`);
-    } finally {
-      setIsProcessing(false);
-      setProcessingStep('');
-    }
-  };
+  } catch (error) {
+    console.error('💥 Error in sentiment analysis:', error);
+    alert(`Failed to analyze sentiment: ${error.message}`);
+  } finally {
+    setIsProcessing(false);
+    setProcessingStep('');
+  }
+};
 
   const handleAnalyzeSentiment = async () => {
     if (!product?.reviews || product.reviews.length === 0) {
@@ -124,9 +130,8 @@ const ProductCard = ({
         };
         
         sentimentService.saveToLocalStorage(completeResult);
-
-        // Navigate to dashboard with the analysis data
-        navigate('/sentiment-visualization-dashboard', {
+// Navigate to REPORTS & ANALYTICS
+        navigate('/reports-analytics', {
           state: {
             analysisData: completeResult.product,
             analysisStats: completeResult.stats,

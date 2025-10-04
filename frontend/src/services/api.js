@@ -57,63 +57,49 @@ class ApiService {
   }
 
   // Scrape reviews for selected products
-  static async scrapeReviews(productIds, products = []) {
-    try {
-      console.log(`Scraping reviews for ${productIds.length} products`);
-      
-      // If products array is provided, use it; otherwise just send IDs
-      const requestData = products.length > 0 
-        ? { products: products.filter(p => productIds.includes(p.id)) }
-        : { product_ids: productIds };
+// Scrape reviews for selected products
+static async scrapeReviews(productIds, products = []) {
+  try {
+    console.log(`Scraping reviews for ${productIds.length} products`);
+    
+    // Send full product objects with id, title, and link
+    const productsToScrape = products.length > 0 
+      ? products.filter(p => productIds.includes(p.id))
+      : [];
 
-      const response = await this.request('/scrape-reviews', {
-        method: 'POST',
-        body: JSON.stringify(requestData)
-      });
+    console.log('Products being sent:', productsToScrape); // DEBUG LOG
 
-      return {
-        success: true,
-        results: response,
-        message: `Reviews scraped for ${productIds.length} products`
-      };
-    } catch (error) {
-      console.error('Failed to scrape reviews:', error);
-      return {
-        success: false,
-        results: [],
-        error: error.message
-      };
-    }
+    const requestData = {
+      product_ids: productIds,
+      products: productsToScrape
+    };
+
+    const response = await this.request('/scrape-reviews', {
+      method: 'POST',
+      body: JSON.stringify(requestData)
+    });
+
+    console.log('Scrape response:', response); // DEBUG LOG
+
+    const results = response.results || [];
+    const totalReviews = response.total_reviews || 0;
+
+    return {
+      success: response.success !== false,
+      results: results,
+      total_reviews: totalReviews,
+      message: response.message || `Reviews scraped for ${productIds.length} products`
+    };
+  } catch (error) {
+    console.error('Failed to scrape reviews:', error);
+    return {
+      success: false,
+      results: [],
+      error: error.message
+    };
   }
+}
 
-  // Analyze sentiment for scraped reviews
-  static async analyzeSentiment(productIds, products = []) {
-    try {
-      console.log(`Analyzing sentiment for ${productIds.length} products`);
-      
-      const requestData = products.length > 0 
-        ? { products: products.filter(p => productIds.includes(p.id)) }
-        : { product_ids: productIds };
-
-      const response = await this.request('/analyze-sentiment', {
-        method: 'POST',
-        body: JSON.stringify(requestData)
-      });
-
-      return {
-        success: true,
-        results: response,
-        message: `Sentiment analyzed for ${productIds.length} products`
-      };
-    } catch (error) {
-      console.error('Failed to analyze sentiment:', error);
-      return {
-        success: false,
-        results: [],
-        error: error.message
-      };
-    }
-  }
 
   // Get processing status for long-running operations
   static async getProcessingStatus(jobId) {

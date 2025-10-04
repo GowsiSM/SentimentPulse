@@ -1,0 +1,71 @@
+{
+  "scraped_at": "2025-10-04T20:18:03.026382",
+  "total_products": 4,
+  "total_reviews": 4,
+  "results": [
+    {
+      "id": "women-apparel-stiched-kurtis-0-1759588900",
+      "title": "AK FASHION MALL Pack of 1 Crepe Printed Straight Women's Kurti - ( Multicolor )",
+      "url": "https://www.snapdeal.com/product/ak-fashion-mall-pack-of/677060328660",
+      "reviews": [
+        {
+          "rating": "4.4/5\n8 Ratings & 0 Review",
+          "text": "Have you used this product?",
+          "reviewer": "REVIEW",
+          "date": "Unknown date",
+          "scraped_at": "2025-10-04T20:16:50.192110"
+        }
+      ],
+      "review_count": 1,
+      "scraped_at": "2025-10-04T20:16:50.192850"
+    },
+    {
+      "id": "women-apparel-stiched-kurtis-1-1759588900",
+      "title": "TEXPA FASHION Women Cotton Striped A-line Kurti ( Multicolor )",
+      "url": "https://www.snapdeal.com/product/texpa-fashion-women-cotton-striped/666329612282",
+      "reviews": [
+        {
+          "rating": "3.8/5\n18 Ratings & 0 Review",
+          "text": "Have you used this product?",
+          "reviewer": "REVIEW",
+          "date": "Unknown date",
+          "scraped_at": "2025-10-04T20:17:14.853458"
+        }
+      ],
+      "review_count": 1,
+      "scraped_at": "2025-10-04T20:17:14.854335"
+    },
+    {
+      "id": "women-apparel-stiched-kurtis-2-1759588900",
+      "title": "KETAKI FASHION Crepe Printed Straight Women's Kurti - Multicolor1 ( Pack of 3 )",
+      "url": "https://www.snapdeal.com/product/ketaki-fashion-crepe-printed-straight/664152840421",
+      "reviews": [
+        {
+          "rating": "4.1/5\n33 Ratings & 0 Review",
+          "text": "Have you used this product?",
+          "reviewer": "REVIEW",
+          "date": "Unknown date",
+          "scraped_at": "2025-10-04T20:17:37.277676"
+        }
+      ],
+      "review_count": 1,
+      "scraped_at": "2025-10-04T20:17:37.278537"
+    },
+    {
+      "id": "women-apparel-stiched-kurtis-3-1759588900",
+      "title": "Greyshade Women's Cotton Blend Printed Straight Kurti - ( Black )",
+      "url": "https://www.snapdeal.com/product/greyshade-womens-cotton-blend-printed/679687210522",
+      "reviews": [
+        {
+          "rating": "No rating",
+          "text": "Very comfortable product and nice fittings. It would be nice if it had a small pocket if possible.",
+          "reviewer": "Anonymous",
+          "date": "Unknown date",
+          "scraped_at": "2025-10-04T20:18:00.745162"
+        }
+      ],
+      "review_count": 1,
+      "scraped_at": "2025-10-04T20:18:00.745974"
+    }
+  ]
+}
