@@ -17,7 +17,7 @@ const UserAuthentication = () => {
 
   useEffect(() => {
     if (authService.isAuthenticated()) {
-      navigate('/sentiment-visualization-dashboard');
+      navigate('/product-search-selection');
     }
   }, [navigate]);
 
@@ -27,7 +27,7 @@ const UserAuthentication = () => {
 
     try {
       await authService.login(formData);
-      navigate('/sentiment-visualization-dashboard');
+      navigate('/product-search-selection');
     } catch (error) {
       setError(error.message || 'Login failed. Please try again.');
     } finally {
@@ -41,7 +41,7 @@ const UserAuthentication = () => {
 
     try {
       await authService.register(formData);
-      navigate('/sentiment-visualization-dashboard');
+      navigate('/product-search-selection');
     } catch (error) {
       setError(error.message || 'Registration failed. Please try again.');
     } finally {
