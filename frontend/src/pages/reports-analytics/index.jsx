@@ -19,71 +19,12 @@ const ReportsAnalytics = () => {
   const [productInfo, setProductInfo] = useState(null);
 
   // Data processing function
-  const processAnalysisData = (rawData) => {
-    console.log('🔄 Processing raw data:', rawData);
-    
-    if (!rawData) {
-      console.log('❌ No raw data provided');
-      return {
-        total_reviews: 0,
-        sentiment_score: 0,
-        positive_percentage: 0,
-        negative_percentage: 0,
-        neutral_percentage: 0,
-        overall_sentiment: 'neutral',
-        positive_reviews: 0,
-        negative_reviews: 0,
-        neutral_reviews: 0
-      };
-    }
-    
-    // Try different possible data structures
-    let summary = null;
-    
-    // Case 1: Data comes from sentiment_analysis.summary
-    if (rawData.sentiment_analysis?.summary) {
-      summary = rawData.sentiment_analysis.summary;
-      console.log('✅ Found data in sentiment_analysis.summary:', summary);
-    }
-    // Case 2: Data is directly the summary
-    else if (rawData.total_reviews !== undefined) {
-      summary = rawData;
-      console.log('✅ Found data as direct summary:', summary);
-    }
-    // Case 3: Data is in analysisStats
-    else if (rawData.analysisStats) {
-      summary = rawData.analysisStats;
-      console.log('✅ Found data in analysisStats:', summary);
-    }
-    // Case 4: Check for nested structures
-    else if (rawData.analysis_data?.sentiment_analysis?.summary) {
-      summary = rawData.analysis_data.sentiment_analysis.summary;
-      console.log('✅ Found data in analysis_data.sentiment_analysis.summary:', summary);
-    }
-    // Case 5: Try to extract from analyzed_reviews
-    else if (rawData.sentiment_analysis?.analyzed_reviews) {
-      const reviews = rawData.sentiment_analysis.analyzed_reviews;
-      const total = reviews.length;
-      const positive = reviews.filter(r => r.sentiment_analysis?.sentiment === 'positive').length;
-      const negative = reviews.filter(r => r.sentiment_analysis?.sentiment === 'negative').length;
-      const neutral = reviews.filter(r => r.sentiment_analysis?.sentiment === 'neutral').length;
-      
-      summary = {
-        total_reviews: total,
-        positive_reviews: positive,
-        negative_reviews: negative,
-        neutral_reviews: neutral,
-        positive_percentage: total > 0 ? Math.round((positive / total) * 100) : 0,
-        negative_percentage: total > 0 ? Math.round((negative / total) * 100) : 0,
-        neutral_percentage: total > 0 ? Math.round((neutral / total) * 100) : 0,
-        sentiment_score: total > 0 ? Math.round((positive / total) * 100) : 0,
-        overall_sentiment: positive > negative && positive > neutral ? 'positive' : 
-                         negative > positive && negative > neutral ? 'negative' : 'neutral'
-      };
-      console.log('✅ Calculated summary from analyzed_reviews:', summary);
-    }
-    
-    return summary || {
+const processAnalysisData = (rawData) => {
+  console.log('🔄 Processing raw data:', rawData);
+  
+  if (!rawData) {
+    console.log('❌ No raw data provided');
+    return {
       total_reviews: 0,
       sentiment_score: 0,
       positive_percentage: 0,
@@ -94,7 +35,82 @@ const ReportsAnalytics = () => {
       negative_reviews: 0,
       neutral_reviews: 0
     };
+  }
+  
+  // Try different possible data structures
+  let summary = null;
+  
+  // Case 1: Data comes from sentiment_analysis.summary (most common)
+  if (rawData.sentiment_analysis?.summary) {
+    summary = rawData.sentiment_analysis.summary;
+    console.log('✅ Found data in sentiment_analysis.summary:', summary);
+  }
+  // Case 2: Data is directly the summary
+  else if (rawData.total_reviews !== undefined) {
+    summary = rawData;
+    console.log('✅ Found data as direct summary:', summary);
+  }
+  // Case 3: Data is in analysisStats
+  else if (rawData.analysisStats) {
+    summary = rawData.analysisStats;
+    console.log('✅ Found data in analysisStats:', summary);
+  }
+  // Case 4: Check for nested structures from API response
+  else if (rawData.analysis_data?.sentiment_analysis?.summary) {
+    summary = rawData.analysis_data.sentiment_analysis.summary;
+    console.log('✅ Found data in analysis_data.sentiment_analysis.summary:', summary);
+  }
+  // Case 5: Calculate from analyzed_reviews if available
+  else if (rawData.sentiment_analysis?.analyzed_reviews) {
+    const reviews = rawData.sentiment_analysis.analyzed_reviews;
+    const total = reviews.length;
+    const positive = reviews.filter(r => r.sentiment_analysis?.sentiment === 'positive').length;
+    const negative = reviews.filter(r => r.sentiment_analysis?.sentiment === 'negative').length;
+    const neutral = reviews.filter(r => r.sentiment_analysis?.sentiment === 'neutral').length;
+    
+    summary = {
+      total_reviews: total,
+      positive_reviews: positive,
+      negative_reviews: negative,
+      neutral_reviews: neutral,
+      positive_percentage: total > 0 ? Math.round((positive / total) * 100) : 0,
+      negative_percentage: total > 0 ? Math.round((negative / total) * 100) : 0,
+      neutral_percentage: total > 0 ? Math.round((neutral / total) * 100) : 0,
+      sentiment_score: total > 0 ? Math.round((positive / total) * 100) : 0,
+      overall_sentiment: positive > negative && positive > neutral ? 'positive' : 
+                       negative > positive && negative > neutral ? 'negative' : 'neutral'
+    };
+    console.log('✅ Calculated summary from analyzed_reviews:', summary);
+  }
+  
+  // If we found a summary, ensure all fields are present
+  if (summary) {
+    return {
+      total_reviews: summary.total_reviews || 0,
+      sentiment_score: summary.sentiment_score || 0,
+      positive_percentage: summary.positive_percentage || 0,
+      negative_percentage: summary.negative_percentage || 0,
+      neutral_percentage: summary.neutral_percentage || 0,
+      overall_sentiment: summary.overall_sentiment || 'neutral',
+      positive_reviews: summary.positive_reviews || 0,
+      negative_reviews: summary.negative_reviews || 0,
+      neutral_reviews: summary.neutral_reviews || 0
+    };
+  }
+  
+  console.log('❌ No summary data found in any structure');
+  return {
+    total_reviews: 0,
+    sentiment_score: 0,
+    positive_percentage: 0,
+    negative_percentage: 0,
+    neutral_percentage: 0,
+    overall_sentiment: 'neutral',
+    positive_reviews: 0,
+    negative_reviews: 0,
+    neutral_reviews: 0
   };
+};
 
   // Single useEffect hook
   useEffect(() => {
