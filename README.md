@@ -67,10 +67,22 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
+**Alternative (Snapdeal environment):**
+```powershell
+.\env_snapdeal\Scripts\Activate.ps1
+where python
+python --version
+```
+
 ### 3. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
+```
+
+**Additional ML/NLP libraries (if needed):**
+```bash
+pip install transformers datasets torch scikit-learn pandas
 ```
 
 ### 4. Download NLTK data
@@ -188,6 +200,9 @@ cd backend
 venv\Scripts\activate  # Windows
 # or
 source venv/bin/activate  # macOS/Linux
+# or (Snapdeal environment)
+.\env_snapdeal\Scripts\Activate.ps1  # Windows PowerShell
+
 python app.py
 ```
 
@@ -220,7 +235,124 @@ Register a new account through the authentication page
 
 ## Project Structure
 
-### Backend Structure
+### Complete File Tree
+
+```
+sentiment-analysis-app/
+├── backend/
+│   ├── analyzer/
+│   │   └── sentiment_analyzer.py    # Core sentiment analysis logic
+│   ├── auth_env/                     # Authentication virtual environment
+│   │   ├── Lib/
+│   │   │   └── site-packages/       # Python packages
+│   │   ├── Scripts/
+│   │   │   ├── Activate.ps1
+│   │   │   ├── activate
+│   │   │   ├── activate.bat
+│   │   │   ├── deactivate.bat
+│   │   │   ├── pip.exe
+│   │   │   └── python.exe
+│   │   └── pyvenv.cfg
+│   ├── data/                         # Scraped data storage
+│   │   ├── products_*.json          # Product data files
+│   │   └── reviews_*.json           # Review data files
+│   ├── env_snapdeal/                # Snapdeal scraping environment
+│   ├── sentiment_model/             # Pre-trained sentiment model
+│   │   ├── config.json
+│   │   ├── model.safetensors
+│   │   ├── tokenizer.json
+│   │   └── vocab.txt
+│   ├── .env                         # Environment variables
+│   ├── app.py                       # Main Flask application
+│   ├── auth_supabase.py            # Supabase authentication
+│   ├── config.py                    # Configuration settings
+│   ├── requirements.txt             # Python dependencies
+│   ├── scrape_products.py          # Product scraping logic
+│   ├── sentiment_analysis.py       # Sentiment orchestration
+│   └── server.js                    # Node server (if needed)
+│
+├── frontend/
+│   ├── public/
+│   │   ├── assets/
+│   │   │   └── images/
+│   │   │       └── no_image.png
+│   │   ├── favicon.ico
+│   │   ├── manifest.json
+│   │   └── robots.txt
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ui/                  # Reusable UI components
+│   │   │   │   ├── Button.jsx
+│   │   │   │   ├── Checkbox.jsx
+│   │   │   │   ├── Header.jsx
+│   │   │   │   ├── Input.jsx
+│   │   │   │   ├── ProfileDropdown.jsx
+│   │   │   │   ├── Select.jsx
+│   │   │   │   └── UserProfile.jsx
+│   │   │   ├── AppIcon.jsx
+│   │   │   ├── AppImage.jsx
+│   │   │   ├── ErrorBoundary.jsx
+│   │   │   └── ScrollToTop.jsx
+│   │   ├── pages/
+│   │   │   ├── product-search-selection/
+│   │   │   │   ├── components/
+│   │   │   │   │   ├── BulkActionBar.jsx
+│   │   │   │   │   ├── ProductCard.jsx
+│   │   │   │   │   ├── ProductGrid.jsx
+│   │   │   │   │   └── SearchBar.jsx
+│   │   │   │   └── index.jsx
+│   │   │   ├── reports-analytics/
+│   │   │   │   └── index.jsx        # Reports & Analytics page
+│   │   │   ├── sentiment-analysis-processing/
+│   │   │   │   ├── components/
+│   │   │   │   │   ├── CancelConfirmationModal.jsx
+│   │   │   │   │   ├── DetailedProgress.jsx
+│   │   │   │   │   ├── LivePreview.jsx
+│   │   │   │   │   ├── OverallProgress.jsx
+│   │   │   │   │   ├── ProcessingActions.jsx
+│   │   │   │   │   ├── ProcessingHeader.jsx
+│   │   │   │   │   └── ProcessingQueue.jsx
+│   │   │   │   └── index.jsx
+│   │   │   ├── user-authentication/
+│   │   │   │   ├── components/
+│   │   │   │   │   ├── AuthFooter.jsx
+│   │   │   │   │   ├── AuthHeader.jsx
+│   │   │   │   │   ├── AuthTabs.jsx
+│   │   │   │   │   ├── LoginForm.jsx
+│   │   │   │   │   └── RegisterForm.jsx
+│   │   │   │   └── index.jsx
+│   │   │   ├── user-profile-settings/
+│   │   │   │   └── index.jsx
+│   │   │   ├── Home.jsx
+│   │   │   └── NotFound.jsx
+│   │   ├── services/
+│   │   │   ├── api.js              # API client
+│   │   │   ├── authService.js      # Authentication service
+│   │   │   └── sentimentService.js # Sentiment analysis service
+│   │   ├── styles/
+│   │   │   ├── index.css
+│   │   │   └── tailwind.css
+│   │   ├── utils/
+│   │   │   └── cn.js               # Utility functions
+│   │   ├── App.jsx                 # Main app component
+│   │   ├── Routes.jsx              # Route definitions
+│   │   └── index.jsx               # Entry point
+│   ├── .env                        # Environment variables
+│   ├── favicon.ico
+│   ├── index.html
+│   ├── jsconfig.json
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── postcss.config.js
+│   ├── tailwind.config.js
+│   └── vite.config.mjs
+│
+├── .gitattributes
+├── .gitignore
+└── README.md
+```
+
+### Backend Structure (Detailed)
 
 ```
 backend/
