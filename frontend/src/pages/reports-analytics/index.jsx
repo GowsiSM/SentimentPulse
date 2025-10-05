@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button';
 import Icon from '../../components/AppIcon';
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 
 const ReportsAnalytics = () => {
   const location = useLocation();
@@ -12,18 +12,75 @@ const ReportsAnalytics = () => {
   const [selectedMetric, setSelectedMetric] = useState('sentiment_trend');
   const [selectedFormat, setSelectedFormat] = useState('pdf');
   const [isExporting, setIsExporting] = useState(false);
+  const [reportTemplate, setReportTemplate] = useState('executive');
+  const [dateRange, setDateRange] = useState('30d');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [exportType, setExportType] = useState('analytics');
   
-  // Get analysis data from navigation state
   const [analysisData, setAnalysisData] = useState(null);
   const [analysisStats, setAnalysisStats] = useState(null);
   const [productInfo, setProductInfo] = useState(null);
 
-  // Data processing function
-const processAnalysisData = (rawData) => {
-  console.log('🔄 Processing raw data:', rawData);
-  
-  if (!rawData) {
-    console.log('❌ No raw data provided');
+  const processAnalysisData = (rawData) => {
+    if (!rawData) {
+      return {
+        total_reviews: 0,
+        sentiment_score: 0,
+        positive_percentage: 0,
+        negative_percentage: 0,
+        neutral_percentage: 0,
+        overall_sentiment: 'neutral',
+        positive_reviews: 0,
+        negative_reviews: 0,
+        neutral_reviews: 0
+      };
+    }
+    
+    let summary = null;
+    
+    if (rawData.sentiment_analysis?.summary) {
+      summary = rawData.sentiment_analysis.summary;
+    } else if (rawData.total_reviews !== undefined) {
+      summary = rawData;
+    } else if (rawData.analysisStats) {
+      summary = rawData.analysisStats;
+    } else if (rawData.analysis_data?.sentiment_analysis?.summary) {
+      summary = rawData.analysis_data.sentiment_analysis.summary;
+    } else if (rawData.sentiment_analysis?.analyzed_reviews) {
+      const reviews = rawData.sentiment_analysis.analyzed_reviews;
+      const total = reviews.length;
+      const positive = reviews.filter(r => r.sentiment_analysis?.sentiment === 'positive').length;
+      const negative = reviews.filter(r => r.sentiment_analysis?.sentiment === 'negative').length;
+      const neutral = reviews.filter(r => r.sentiment_analysis?.sentiment === 'neutral').length;
+      
+      summary = {
+        total_reviews: total,
+        positive_reviews: positive,
+        negative_reviews: negative,
+        neutral_reviews: neutral,
+        positive_percentage: total > 0 ? Math.round((positive / total) * 100) : 0,
+        negative_percentage: total > 0 ? Math.round((negative / total) * 100) : 0,
+        neutral_percentage: total > 0 ? Math.round((neutral / total) * 100) : 0,
+        sentiment_score: total > 0 ? Math.round((positive / total) * 100) : 0,
+        overall_sentiment: positive > negative && positive > neutral ? 'positive' : 
+                         negative > positive && negative > neutral ? 'negative' : 'neutral'
+      };
+    }
+    
+    if (summary) {
+      return {
+        total_reviews: summary.total_reviews || 0,
+        sentiment_score: summary.sentiment_score || 0,
+        positive_percentage: summary.positive_percentage || 0,
+        negative_percentage: summary.negative_percentage || 0,
+        neutral_percentage: summary.neutral_percentage || 0,
+        overall_sentiment: summary.overall_sentiment || 'neutral',
+        positive_reviews: summary.positive_reviews || 0,
+        negative_reviews: summary.negative_reviews || 0,
+        neutral_reviews: summary.neutral_reviews || 0
+      };
+    }
+    
     return {
       total_reviews: 0,
       sentiment_score: 0,
@@ -35,103 +92,20 @@ const processAnalysisData = (rawData) => {
       negative_reviews: 0,
       neutral_reviews: 0
     };
-  }
-  
-  // Try different possible data structures
-  let summary = null;
-  
-  // Case 1: Data comes from sentiment_analysis.summary (most common)
-  if (rawData.sentiment_analysis?.summary) {
-    summary = rawData.sentiment_analysis.summary;
-    console.log('✅ Found data in sentiment_analysis.summary:', summary);
-  }
-  // Case 2: Data is directly the summary
-  else if (rawData.total_reviews !== undefined) {
-    summary = rawData;
-    console.log('✅ Found data as direct summary:', summary);
-  }
-  // Case 3: Data is in analysisStats
-  else if (rawData.analysisStats) {
-    summary = rawData.analysisStats;
-    console.log('✅ Found data in analysisStats:', summary);
-  }
-  // Case 4: Check for nested structures from API response
-  else if (rawData.analysis_data?.sentiment_analysis?.summary) {
-    summary = rawData.analysis_data.sentiment_analysis.summary;
-    console.log('✅ Found data in analysis_data.sentiment_analysis.summary:', summary);
-  }
-  // Case 5: Calculate from analyzed_reviews if available
-  else if (rawData.sentiment_analysis?.analyzed_reviews) {
-    const reviews = rawData.sentiment_analysis.analyzed_reviews;
-    const total = reviews.length;
-    const positive = reviews.filter(r => r.sentiment_analysis?.sentiment === 'positive').length;
-    const negative = reviews.filter(r => r.sentiment_analysis?.sentiment === 'negative').length;
-    const neutral = reviews.filter(r => r.sentiment_analysis?.sentiment === 'neutral').length;
-    
-    summary = {
-      total_reviews: total,
-      positive_reviews: positive,
-      negative_reviews: negative,
-      neutral_reviews: neutral,
-      positive_percentage: total > 0 ? Math.round((positive / total) * 100) : 0,
-      negative_percentage: total > 0 ? Math.round((negative / total) * 100) : 0,
-      neutral_percentage: total > 0 ? Math.round((neutral / total) * 100) : 0,
-      sentiment_score: total > 0 ? Math.round((positive / total) * 100) : 0,
-      overall_sentiment: positive > negative && positive > neutral ? 'positive' : 
-                       negative > positive && negative > neutral ? 'negative' : 'neutral'
-    };
-    console.log('✅ Calculated summary from analyzed_reviews:', summary);
-  }
-  
-  // If we found a summary, ensure all fields are present
-  if (summary) {
-    return {
-      total_reviews: summary.total_reviews || 0,
-      sentiment_score: summary.sentiment_score || 0,
-      positive_percentage: summary.positive_percentage || 0,
-      negative_percentage: summary.negative_percentage || 0,
-      neutral_percentage: summary.neutral_percentage || 0,
-      overall_sentiment: summary.overall_sentiment || 'neutral',
-      positive_reviews: summary.positive_reviews || 0,
-      negative_reviews: summary.negative_reviews || 0,
-      neutral_reviews: summary.neutral_reviews || 0
-    };
-  }
-  
-  console.log('❌ No summary data found in any structure');
-  return {
-    total_reviews: 0,
-    sentiment_score: 0,
-    positive_percentage: 0,
-    negative_percentage: 0,
-    neutral_percentage: 0,
-    overall_sentiment: 'neutral',
-    positive_reviews: 0,
-    negative_reviews: 0,
-    neutral_reviews: 0
   };
-};
 
-  // Single useEffect hook
   useEffect(() => {
     if (location.state) {
-      console.log('📍 Location state received:', location.state);
-      
       setAnalysisData(location.state.analysisData);
       setProductInfo(location.state.productInfo);
       
-      // Process the stats properly - try multiple sources
       const processedStats = processAnalysisData(
         location.state.analysisData || 
         location.state.analysisStats || 
         location.state
       );
       setAnalysisStats(processedStats);
-      
-      console.log('📊 Final processed stats:', processedStats);
     } else {
-      console.log('❌ No location state found');
-      // Set default empty stats
       setAnalysisStats({
         total_reviews: 0,
         sentiment_score: 0,
@@ -152,7 +126,6 @@ const processAnalysisData = (rawData) => {
     { id: 'export', label: 'Export', icon: 'Download' }
   ];
 
-  // Use actual data from analysis or fallback to mock data
   const keyMetrics = analysisStats ? [
     { 
       title: 'Total Reviews', 
@@ -182,14 +155,8 @@ const processAnalysisData = (rawData) => {
       trend: (analysisStats.negative_percentage || 0) > 30 ? 'up' : 'down', 
       color: (analysisStats.negative_percentage || 0) > 30 ? '#ef4444' : '#e40046'
     }
-  ] : [
-    { title: 'Total Reviews', value: '0', change: '+0%', trend: 'up', color: '#e40046' },
-    { title: 'Sentiment Score', value: '0%', change: '+0%', trend: 'up', color: '#e40046' },
-    { title: 'Positive Reviews', value: '0%', change: '+0%', trend: 'up', color: '#e40046' },
-    { title: 'Negative Reviews', value: '0%', change: '+0%', trend: 'down', color: '#e06a6e' }
-  ];
+  ] : [];
 
-  // Generate sentiment trend data from analysis
   const sentimentTrendData = analysisData?.sentiment_analysis?.analyzed_reviews ? 
     analysisData.sentiment_analysis.analyzed_reviews.slice(0, 5).map((review, index) => ({
       date: `Review ${index + 1}`,
@@ -197,24 +164,14 @@ const processAnalysisData = (rawData) => {
       negative: review.sentiment_analysis?.sentiment === 'negative' ? 100 : 0,
       neutral: review.sentiment_analysis?.sentiment === 'neutral' ? 100 : 0,
       confidence: review.sentiment_analysis?.confidence || 0
-    })) : [
-      { date: 'Review 1', positive: 65, negative: 20, neutral: 15 },
-      { date: 'Review 2', positive: 68, negative: 18, neutral: 14 },
-      { date: 'Review 3', positive: 72, negative: 16, neutral: 12 }
-    ];
+    })) : [];
 
-  // Sentiment distribution for pie chart
   const sentimentDistribution = analysisStats ? [
-    { name: 'Positive', value: analysisStats.positive_percentage || 0, color: '#10b981' },
-    { name: 'Negative', value: analysisStats.negative_percentage || 0, color: '#ef4444' },
-    { name: 'Neutral', value: analysisStats.neutral_percentage || 0, color: '#6b7280' }
-  ] : [
-    { name: 'Positive', value: 35, color: '#10b981' },
-    { name: 'Negative', value: 25, color: '#ef4444' },
-    { name: 'Neutral', value: 40, color: '#6b7280' }
-  ];
+    { name: 'Positive', value: analysisStats.positive_percentage || 0, color: '#6ee7b7' },
+    { name: 'Negative', value: analysisStats.negative_percentage || 0, color: '#fca5a5' },
+    { name: 'Neutral', value: analysisStats.neutral_percentage || 0, color: '#d1d5db' }
+  ] : [];
 
-  // Generate insights from actual analysis
   const generateInsights = () => {
     if (!analysisStats) return [];
     
@@ -267,7 +224,6 @@ const processAnalysisData = (rawData) => {
       });
     }
 
-    // Add sentiment score insight
     const sentimentScore = analysisStats.sentiment_score || 0;
     if (sentimentScore > 70) {
       insights.push({
@@ -288,7 +244,6 @@ const processAnalysisData = (rawData) => {
 
   const insights = generateInsights();
 
-  // Generate recommendations based on analysis
   const generateRecommendations = () => {
     if (!analysisStats) return [];
     
@@ -344,6 +299,172 @@ const processAnalysisData = (rawData) => {
 
   const recommendations = generateRecommendations();
 
+  const generateReport = () => {
+    if (!analysisData || !analysisStats) {
+      alert('No analysis data available. Please analyze a product first.');
+      return;
+    }
+
+    setIsExporting(true);
+
+    setTimeout(() => {
+      if (selectedFormat === 'pdf') {
+        const content = `SENTIMENT ANALYSIS REPORT
+${productInfo?.title || 'Product Analysis'}
+Generated: ${new Date().toLocaleString()}
+
+SUMMARY:
+- Total Reviews: ${analysisStats.total_reviews}
+- Sentiment Score: ${analysisStats.sentiment_score}%
+- Overall Sentiment: ${analysisStats.overall_sentiment}
+- Positive: ${analysisStats.positive_percentage}%
+- Negative: ${analysisStats.negative_percentage}%
+- Neutral: ${analysisStats.neutral_percentage}%
+
+INSIGHTS:
+${insights.map(i => `• ${i.text}: ${i.detail}`).join('\n')}
+
+RECOMMENDATIONS:
+${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
+        
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sentiment-report-${Date.now()}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const csvContent = [
+          ['Metric', 'Value'],
+          ['Total Reviews', analysisStats.total_reviews],
+          ['Sentiment Score', `${analysisStats.sentiment_score}%`],
+          ['Overall Sentiment', analysisStats.overall_sentiment],
+          ['Positive Reviews', `${analysisStats.positive_percentage}%`],
+          ['Negative Reviews', `${analysisStats.negative_percentage}%`],
+          ['Neutral Reviews', `${analysisStats.neutral_percentage}%`],
+          [''],
+          ['Insights', ''],
+          ...insights.map(i => [i.text, i.detail]),
+          [''],
+          ['Recommendations', ''],
+          ...recommendations.map(r => [r.text, r.detail])
+        ].map(row => row.join(',')).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sentiment-report-${Date.now()}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      setIsExporting(false);
+      alert(`Report generated successfully as ${selectedFormat.toUpperCase()}`);
+    }, 1500);
+  };
+
+  const exportData = () => {
+    if (!analysisData || !analysisStats) {
+      alert('No data available to export. Please analyze a product first.');
+      return;
+    }
+
+    setIsExporting(true);
+
+    setTimeout(() => {
+      let dataToExport;
+      
+      if (exportType === 'analytics') {
+        dataToExport = {
+          productInfo: productInfo,
+          stats: analysisStats,
+          insights: insights,
+          recommendations: recommendations,
+          exportedAt: new Date().toISOString()
+        };
+      } else if (exportType === 'reviews') {
+        dataToExport = {
+          productInfo: productInfo,
+          reviews: analysisData.reviews || [],
+          totalReviews: analysisStats.total_reviews,
+          exportedAt: new Date().toISOString()
+        };
+      } else if (exportType === 'sentiment') {
+        dataToExport = {
+          productInfo: productInfo,
+          sentimentScores: {
+            overall: analysisStats.sentiment_score,
+            positive: analysisStats.positive_percentage,
+            negative: analysisStats.negative_percentage,
+            neutral: analysisStats.neutral_percentage,
+            sentiment: analysisStats.overall_sentiment
+          },
+          distribution: sentimentDistribution,
+          exportedAt: new Date().toISOString()
+        };
+      }
+
+      if (selectedFormat === 'json') {
+        const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${exportType}-export-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        let csvContent = '';
+        
+        if (exportType === 'analytics') {
+          csvContent = [
+            ['Metric', 'Value'],
+            ['Product', productInfo?.title || 'N/A'],
+            ['Total Reviews', analysisStats.total_reviews],
+            ['Sentiment Score', analysisStats.sentiment_score],
+            ['Positive %', analysisStats.positive_percentage],
+            ['Negative %', analysisStats.negative_percentage],
+            ['Neutral %', analysisStats.neutral_percentage],
+            ['Overall Sentiment', analysisStats.overall_sentiment]
+          ].map(row => row.join(',')).join('\n');
+        } else if (exportType === 'reviews') {
+          const reviews = analysisData.reviews || [];
+          csvContent = [
+            ['Reviewer', 'Date', 'Rating', 'Review Text'],
+            ...reviews.map(r => [
+              r.reviewer || 'Anonymous',
+              r.date || 'N/A',
+              r.rating || 'N/A',
+              `"${(r.text || '').replace(/"/g, '""')}"`
+            ])
+          ].map(row => row.join(',')).join('\n');
+        } else if (exportType === 'sentiment') {
+          csvContent = [
+            ['Sentiment Type', 'Percentage'],
+            ['Positive', analysisStats.positive_percentage],
+            ['Negative', analysisStats.negative_percentage],
+            ['Neutral', analysisStats.neutral_percentage],
+            [''],
+            ['Overall Score', analysisStats.sentiment_score],
+            ['Overall Sentiment', analysisStats.overall_sentiment]
+          ].map(row => row.join(',')).join('\n');
+        }
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${exportType}-${Date.now()}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      setIsExporting(false);
+      alert(`Data exported successfully as ${selectedFormat.toUpperCase()}`);
+    }, 1500);
+  };
+
   const renderChart = () => {
     switch (selectedMetric) {
       case 'sentiment_trend':
@@ -354,9 +475,9 @@ const processAnalysisData = (rawData) => {
               <XAxis dataKey="date" stroke="#5a5a59" fontSize={12} />
               <YAxis stroke="#5a5a59" fontSize={12} />
               <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #0000001a', borderRadius: '8px' }} />
-              <Area type="monotone" dataKey="positive" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} />
-              <Area type="monotone" dataKey="neutral" stackId="1" stroke="#6b7280" fill="#6b7280" fillOpacity={0.6} />
-              <Area type="monotone" dataKey="negative" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} />
+              <Area type="monotone" dataKey="positive" stackId="1" stroke="#6ee7b7" fill="#6ee7b7" fillOpacity={0.6} />
+              <Area type="monotone" dataKey="neutral" stackId="1" stroke="#d1d5db" fill="#d1d5db" fillOpacity={0.6} />
+              <Area type="monotone" dataKey="negative" stackId="1" stroke="#fca5a5" fill="#fca5a5" fillOpacity={0.6} />
             </AreaChart>
           </ResponsiveContainer>
         );
@@ -403,9 +524,9 @@ const processAnalysisData = (rawData) => {
               <XAxis dataKey="date" stroke="#5a5a59" fontSize={12} />
               <YAxis stroke="#5a5a59" fontSize={12} />
               <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #0000001a', borderRadius: '8px' }} />
-              <Area type="monotone" dataKey="positive" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} />
-              <Area type="monotone" dataKey="neutral" stackId="1" stroke="#6b7280" fill="#6b7280" fillOpacity={0.6} />
-              <Area type="monotone" dataKey="negative" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} />
+              <Area type="monotone" dataKey="positive" stackId="1" stroke="#6ee7b7" fill="#6ee7b7" fillOpacity={0.6} />
+              <Area type="monotone" dataKey="neutral" stackId="1" stroke="#d1d5db" fill="#d1d5db" fillOpacity={0.6} />
+              <Area type="monotone" dataKey="negative" stackId="1" stroke="#fca5a5" fill="#fca5a5" fillOpacity={0.6} />
             </AreaChart>
           </ResponsiveContainer>
         );
@@ -414,7 +535,6 @@ const processAnalysisData = (rawData) => {
 
   const DashboardView = () => (
     <div className="space-y-6">
-      {/* Product Info Banner */}
       {productInfo && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <div className="flex items-center space-x-4">
@@ -450,7 +570,6 @@ const processAnalysisData = (rawData) => {
         </div>
       )}
 
-      {/* Key Metrics - Now shows actual analysis data */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {keyMetrics.map((metric, index) => (
           <div key={index} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
@@ -469,7 +588,6 @@ const processAnalysisData = (rawData) => {
         ))}
       </div>
 
-      {/* Chart Section */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <h3 className="text-lg font-semibold text-black mb-4 sm:mb-0">
@@ -500,7 +618,6 @@ const processAnalysisData = (rawData) => {
         </div>
       </div>
 
-      {/* Insights & Recommendations */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-black mb-4">Analysis Insights</h3>
@@ -542,7 +659,6 @@ const processAnalysisData = (rawData) => {
         </div>
       </div>
 
-      {/* Raw Reviews Preview */}
       {analysisData?.reviews && analysisData.reviews.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-black mb-4">Sample Reviews</h3>
@@ -575,75 +691,107 @@ const processAnalysisData = (rawData) => {
     <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
       <h3 className="text-lg font-semibold text-black mb-6">Generate Custom Report</h3>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-black mb-2">Report Template</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500">
-              <option value="">Choose a template</option>
-              <option value="executive">Executive Summary</option>
-              <option value="detailed">Detailed Analysis</option>
-              <option value="competitive">Competitive Report</option>
-              <option value="trend">Trend Analysis</option>
-            </select>
+      {!analysisData || !analysisStats ? (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+            <Icon name="AlertCircle" size={32} color="#9ca3af" />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-black mb-2">Date Range</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500">
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="90d">Last 90 Days</option>
-              <option value="custom">Custom Range</option>
-            </select>
-          </div>
+          <p className="text-gray-600 mb-2">No analysis data available</p>
+          <p className="text-sm text-gray-500">Please analyze a product first to generate reports</p>
         </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">Report Template</label>
+                <select 
+                  value={reportTemplate}
+                  onChange={(e) => setReportTemplate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="executive">Executive Summary</option>
+                  <option value="detailed">Detailed Analysis</option>
+                  <option value="competitive">Competitive Report</option>
+                  <option value="trend">Trend Analysis</option>
+                </select>
+              </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-black mb-2">Categories</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500">
-              <option value="">All Categories</option>
-              <option value="electronics">Electronics</option>
-              <option value="fashion">Fashion</option>
-              <option value="home">Home & Kitchen</option>
-            </select>
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">Date Range</label>
+                <select 
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="7d">Last 7 Days</option>
+                  <option value="30d">Last 30 Days</option>
+                  <option value="90d">Last 90 Days</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">Categories</label>
+                <select 
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="electronics">Electronics</option>
+                  <option value="fashion">Fashion</option>
+                  <option value="home">Home & Kitchen</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">Output Format</label>
+                <select 
+                  value={selectedFormat}
+                  onChange={(e) => setSelectedFormat(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="pdf">PDF Report</option>
+                  <option value="excel">Excel Workbook</option>
+                  <option value="csv">CSV Data</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-black mb-2">Output Format</label>
-            <select 
-              value={selectedFormat}
-              onChange={(e) => setSelectedFormat(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h4 className="text-sm font-semibold text-black mb-3">Report Preview</h4>
+            <div className="space-y-2 text-sm text-gray-700">
+              <p><span className="font-medium">Product:</span> {productInfo?.title || 'N/A'}</p>
+              <p><span className="font-medium">Template:</span> {reportTemplate.charAt(0).toUpperCase() + reportTemplate.slice(1)}</p>
+              <p><span className="font-medium">Date Range:</span> {dateRange}</p>
+              <p><span className="font-medium">Format:</span> {selectedFormat.toUpperCase()}</p>
+              <p><span className="font-medium">Total Reviews:</span> {analysisStats.total_reviews}</p>
+              <p><span className="font-medium">Sentiment Score:</span> {analysisStats.sentiment_score}%</p>
+            </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-gray-200 flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              Report will include: Summary, Insights, Recommendations, and Charts
+            </p>
+            <Button
+              variant="default"
+              onClick={generateReport}
+              disabled={isExporting}
+              loading={isExporting}
+              iconName="FileText"
+              iconPosition="left"
+              className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400"
             >
-              <option value="pdf">PDF Report</option>
-              <option value="excel">Excel Workbook</option>
-              <option value="csv">CSV Data</option>
-            </select>
+              {isExporting ? 'Generating...' : 'Generate Report'}
+            </Button>
           </div>
-        </div>
-      </div>
-
-      <div className="mt-8 pt-6 border-t border-gray-200">
-        <Button
-          variant="default"
-          onClick={() => {
-            setIsExporting(true);
-            setTimeout(() => {
-              setIsExporting(false);
-              alert(`Report exported as ${selectedFormat.toUpperCase()}`);
-            }, 2000);
-          }}
-          disabled={isExporting}
-          loading={isExporting}
-          iconName="FileText"
-          iconPosition="left"
-          className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400"
-        >
-          {isExporting ? 'Generating...' : 'Generate Report'}
-        </Button>
-      </div>
+        </>
+      )}
     </div>
   );
 
@@ -652,51 +800,108 @@ const processAnalysisData = (rawData) => {
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
         <h3 className="text-lg font-semibold text-black mb-6">Export Data</h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-black mb-2">Export Type</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500">
-              <option value="analytics">Analytics Data</option>
-              <option value="reviews">Raw Reviews</option>
-              <option value="sentiment">Sentiment Scores</option>
-            </select>
+        {!analysisData || !analysisStats ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+              <Icon name="AlertCircle" size={32} color="#9ca3af" />
+            </div>
+            <p className="text-gray-600 mb-2">No data available to export</p>
+            <p className="text-sm text-gray-500">Please analyze a product first to export data</p>
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-black mb-2">Format</label>
-            <select 
-              value={selectedFormat}
-              onChange={(e) => setSelectedFormat(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-            >
-              <option value="csv">CSV</option>
-              <option value="excel">Excel</option>
-              <option value="json">JSON</option>
-            </select>
-          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">Export Type</label>
+                <select 
+                  value={exportType}
+                  onChange={(e) => setExportType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="analytics">Analytics Data</option>
+                  <option value="reviews">Raw Reviews</option>
+                  <option value="sentiment">Sentiment Scores</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">Format</label>
+                <select 
+                  value={selectedFormat}
+                  onChange={(e) => setSelectedFormat(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="csv">CSV</option>
+                  <option value="excel">Excel</option>
+                  <option value="json">JSON</option>
+                </select>
+              </div>
 
-          <div className="flex items-end">
-            <Button
-              variant="default"
-              size="default"
-              onClick={() => {
-                setIsExporting(true);
-                setTimeout(() => {
-                  setIsExporting(false);
-                  alert(`Data exported as ${selectedFormat.toUpperCase()}`);
-                }, 2000);
-              }}
-              disabled={isExporting}
-              loading={isExporting}
-              iconName="Download"
-              iconPosition="left"
-              fullWidth
-              className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400"
-            >
-              {isExporting ? 'Exporting...' : 'Export'}
-            </Button>
-          </div>
-        </div>
+              <div className="flex items-end">
+                <Button
+                  variant="default"
+                  size="default"
+                  onClick={exportData}
+                  disabled={isExporting}
+                  loading={isExporting}
+                  iconName="Download"
+                  iconPosition="left"
+                  fullWidth
+                  className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400"
+                >
+                  {isExporting ? 'Exporting...' : 'Export'}
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h4 className="text-sm font-semibold text-black mb-3">Export Preview</h4>
+              <div className="space-y-2 text-sm text-gray-700">
+                <p><span className="font-medium">Type:</span> {exportType.charAt(0).toUpperCase() + exportType.slice(1)} Data</p>
+                <p><span className="font-medium">Format:</span> {selectedFormat.toUpperCase()}</p>
+                <p><span className="font-medium">Product:</span> {productInfo?.title || 'N/A'}</p>
+                {exportType === 'analytics' && (
+                  <>
+                    <p><span className="font-medium">Includes:</span> Stats, Insights, Recommendations</p>
+                    <p><span className="font-medium">Records:</span> {Object.keys(analysisStats).length} metrics</p>
+                  </>
+                )}
+                {exportType === 'reviews' && (
+                  <>
+                    <p><span className="font-medium">Includes:</span> All review text, ratings, dates</p>
+                    <p><span className="font-medium">Records:</span> {analysisData.reviews?.length || 0} reviews</p>
+                  </>
+                )}
+                {exportType === 'sentiment' && (
+                  <>
+                    <p><span className="font-medium">Includes:</span> Sentiment scores and distribution</p>
+                    <p><span className="font-medium">Records:</span> 4 sentiment metrics</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 mt-6">
+              <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                <div className="text-2xl font-bold text-black">{analysisStats.total_reviews}</div>
+                <div className="text-sm text-gray-600">Total Reviews</div>
+              </div>
+              <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                <div className="text-2xl font-bold text-black">{analysisStats.sentiment_score}%</div>
+                <div className="text-sm text-gray-600">Sentiment Score</div>
+              </div>
+              <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                <div className={`text-2xl font-bold ${
+                  analysisStats.overall_sentiment === 'positive' ? 'text-green-600' :
+                  analysisStats.overall_sentiment === 'negative' ? 'text-red-600' : 'text-gray-600'
+                }`}>
+                  {analysisStats.overall_sentiment?.toUpperCase()}
+                </div>
+                <div className="text-sm text-gray-600">Overall Sentiment</div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -726,20 +931,6 @@ const processAnalysisData = (rawData) => {
               <div className="text-sm text-gray-500">
                 Last updated: {new Date().toLocaleString()}
               </div>
-              {/* Debug button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  console.log('🔍 Debug Analysis Data:', analysisData);
-                  console.log('🔍 Debug Analysis Stats:', analysisStats);
-                  console.log('🔍 Debug Product Info:', productInfo);
-                  console.log('🔍 Debug Location State:', location.state);
-                  console.log('🔍 Debug Key Metrics:', keyMetrics);
-                }}
-              >
-                Debug Data
-              </Button>
             </div>
           </div>
         </div>
