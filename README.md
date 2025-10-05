@@ -1,33 +1,36 @@
-# 📝 Sentiment Analysis App
+# Sentiment Analysis App
 
 A full-stack application for scraping product reviews, performing sentiment analysis using NLP and ML models, and visualizing the results in an interactive dashboard.
 
-## 🌟 Features
+## Features
 
-- 🛍️ **Product Scraping**: Extract product information from multiple categories
-- 💬 **Review Extraction**: Scrape customer reviews using advanced techniques
-- 📊 **Sentiment Analysis**: Analyze review sentiment with enhanced accuracy using multiple models
-- 🌐 **Web Interface**: User-friendly React-based web application
-- 🔄 **Batch Processing**: Process multiple categories automatically
-- 📈 **Comprehensive Reports**: Detailed sentiment analysis reports with visualizations
-- 🔐 **User Authentication**: Secure login and registration system
-- ⚡ **Real-time Processing**: Live progress tracking during analysis
+- **Product Scraping**: Extract product information from multiple categories
+- **Review Extraction**: Scrape customer reviews using advanced techniques
+- **Sentiment Analysis**: Analyze review sentiment with enhanced accuracy using multiple models
+- **Web Interface**: User-friendly React-based web application
+- **Batch Processing**: Process multiple categories automatically
+- **Comprehensive Reports**: Detailed sentiment analysis reports with visualizations
+- **User Authentication**: Secure login and registration system
+- **Real-time Processing**: Live progress tracking during analysis
 
-## 🎨 Color Palette
+## Color Palette
 
 | Name | Hex | Usage |
 |------|-----|-------|
 | Primary Red | `#e40046` | Primary buttons, accents |
+| Soft Red | `#ef4444` | Secondary elements |
 | Black | `#000000` | Text, borders |
 | Light Black (10%) | `#0000001a` | Subtle backgrounds |
-| Soft Red | `#e06a6e` | Secondary elements |
 | Navy Black | `#06081fe0` | Dark backgrounds |
 | Dark Gray | `#333333` | Secondary text |
 | Medium Gray | `#5a5a59` | Disabled elements |
 | White | `#ffffff` | Backgrounds, text on dark |
 | Rating Yellow | `#ffc315` | Star ratings, highlights |
+| Positive Green | `#6ee7b7` | Positive sentiment |
+| Negative Red | `#fca5a5` | Negative sentiment |
+| Neutral Gray | `#d1d5db` | Neutral sentiment |
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 sentiment-analysis-app/
@@ -35,14 +38,14 @@ sentiment-analysis-app/
 └── frontend/         # React Vite application
 ```
 
-## ⚙️ Prerequisites
+## Prerequisites
 
 - Python 3.8+
 - Node.js 16+
 - npm or yarn
 - Chrome/Firefox browser (for web scraping)
 
-## 🚀 Backend Setup
+## Backend Setup
 
 ### 1. Navigate to backend directory
 
@@ -52,19 +55,17 @@ cd backend
 
 ### 2. Create and activate virtual environment
 
+**Windows:**
 ```bash
 python -m venv venv
 venv\Scripts\activate
-
 ```
-(Gowsi)
-.\env_snapdeal\Scripts\Activate.ps1
-where python
-python --version
-pip install transformers datasets torch scikit-learn pandas
 
-force remove files 
-git rm -f --cached env_snapdeal/*  
+**macOS/Linux:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
 
 ### 3. Install Python dependencies
 
@@ -97,7 +98,7 @@ python app.py
 
 The backend API will be available at `http://localhost:5000`
 
-## 💻 Frontend Setup
+## Frontend Setup
 
 ### 1. Navigate to frontend directory
 
@@ -129,7 +130,7 @@ npm run dev
 
 The frontend will be available at `http://localhost:5173`
 
-## 📊 Tech Stack
+## Tech Stack
 
 ### Backend
 
@@ -144,12 +145,13 @@ The frontend will be available at `http://localhost:5173`
 
 - **React + Vite** - UI framework and build tool
 - **Tailwind CSS + shadcn/ui** - Styling and components
-- **Chart.js + react-chartjs-2** - Data visualization
+- **Recharts** - Data visualization
 - **Axios** - API communication
+- **React Router** - Navigation
 
-## 🗃️ Database Setup
+## Database Setup
 
-The application uses Supabase for authentication and data storage. Follow these steps to set up:
+The application uses Supabase for authentication and data storage.
 
 1. Create a Supabase account at [supabase.com](https://supabase.com)
 2. Create a new project
@@ -157,36 +159,40 @@ The application uses Supabase for authentication and data storage. Follow these 
 4. Update the environment variables in both backend and frontend
 5. Run the SQL schema from `supabase_schema.sql` in the Supabase SQL editor
 
-## 🔧 Configuration
+## Configuration
 
-### Backend Configuration (`backend/config.py`)
+### Backend Configuration
 
-Update the following settings as needed:
+Update settings in `backend/config.py`:
 
 - Scraping timeouts and retries
 - Sentiment analysis model preferences
 - File storage paths
 - API rate limiting
 
-### Frontend Configuration (`frontend/src/services/api.js`)
+### Frontend Configuration
 
-Update API endpoints if different from default:
+Update API endpoints in `frontend/src/services/api.js` if different from default:
 
 ```javascript
 const API_BASE_URL = 'http://localhost:5000';
 ```
 
-## 🧪 Testing the Application
+## Testing the Application
 
 ### 1. Start both servers
 
+**Terminal 1 - Backend:**
 ```bash
-# Terminal 1 - Backend
 cd backend
-venv\Scripts\activate
+venv\Scripts\activate  # Windows
+# or
+source venv/bin/activate  # macOS/Linux
 python app.py
+```
 
-# Terminal 2 - Frontend  
+**Terminal 2 - Frontend:**
+```bash
 cd frontend
 npm run dev
 ```
@@ -212,7 +218,7 @@ Register a new account through the authentication page
 3. Monitor progress in the processing queue
 4. View results in the visualization dashboard
 
-## 📁 Project Structure Details
+## Project Structure
 
 ### Backend Structure
 
@@ -220,7 +226,7 @@ Register a new account through the authentication page
 backend/
 ├── analyzer/                 # Sentiment analysis modules
 ├── data/                    # JSON data storage
-├── auth_env/                # Virtual environment (auto-generated)
+├── auth_env/                # Virtual environment
 ├── app.py                   # Main Flask application
 ├── auth_supabase.py         # Supabase authentication
 ├── scrape_products.py       # Product scraping logic
@@ -234,10 +240,12 @@ backend/
 frontend/
 ├── src/
 │   ├── components/          # Reusable UI components
+│   │   ├── ui/             # UI primitives
+│   │   └── AppIcon.jsx     # Icon component
 │   ├── pages/              # Application pages
 │   │   ├── product-search-selection/    # Product discovery
 │   │   ├── sentiment-analysis-processing/ # Analysis workflow
-│   │   ├── sentiment-visualization-dashboard/ # Results
+│   │   ├── reports-analytics/           # Reports & Analytics
 │   │   ├── user-authentication/         # Login/register
 │   │   └── user-profile-settings/       # User management
 │   ├── services/           # API services
@@ -246,7 +254,24 @@ frontend/
 └── public/                 # Static assets
 ```
 
-## 🐛 Troubleshooting
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - Register new user
+- `POST /api/auth/login` - User login
+- `POST /api/auth/logout` - User logout
+
+### Products
+- `GET /api/products/categories` - Get available categories
+- `POST /api/scrape/products` - Scrape products by category
+- `GET /api/products` - Get scraped products
+
+### Sentiment Analysis
+- `POST /api/analyze/sentiment` - Analyze product reviews
+- `GET /api/analysis/results/:id` - Get analysis results
+- `POST /api/export/report` - Export analysis report
+
+## Troubleshooting
 
 ### Common Issues
 
@@ -268,13 +293,75 @@ frontend/
 - Check Flask-CORS is properly installed
 
 **Frontend build issues**
-- Clear node_modules and reinstall: `rm -rf node_modules && npm install`
+- Clear node_modules: `rm -rf node_modules && npm install`
+- Clear Vite cache: `npm run dev -- --force`
 
 ### Getting Help
 
-Check the following places for additional support:
-
-- Review the browser console for error messages
+- Check the browser console for error messages
 - Check the Flask server logs for backend errors
 - Verify all environment variables are set correctly
 - Ensure all prerequisite software is installed
+
+## Features in Detail
+
+### Product Search & Selection
+- Multi-category product scraping
+- Real-time scraping progress
+- Product filtering and search
+- Batch selection for analysis
+
+### Sentiment Analysis Processing
+- Queue-based processing system
+- Real-time progress tracking
+- Multi-model sentiment analysis
+- Confidence scoring
+
+### Reports & Analytics
+- Interactive dashboard with charts
+- Sentiment distribution visualization
+- Trend analysis over time
+- Key insights and recommendations
+- Export functionality (CSV, JSON, PDF)
+
+### User Management
+- Secure authentication via Supabase
+- Profile management
+- Analysis history
+- Saved reports
+
+## Export Formats
+
+The application supports multiple export formats:
+
+- **CSV**: Spreadsheet-compatible data
+- **JSON**: Structured data for programmatic use
+- **PDF**: Formatted reports (exported as .txt)
+
+## License
+
+This project is licensed under the MIT License.
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## Support
+
+For issues and questions:
+- Open an issue on GitHub
+- Check existing documentation
+- Review troubleshooting section
+
+## Acknowledgments
+
+- Built with Flask and React
+- Uses Hugging Face Transformers for NLP
+- Powered by Supabase for authentication
+- UI components from shadcn/ui
