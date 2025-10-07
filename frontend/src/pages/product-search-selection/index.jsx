@@ -187,21 +187,18 @@ const ProductSearchSelection = () => {
     setSelectedProducts([]);
   };
 
- const handleProductAnalyze = async (product, action) => {
+// FIXED: Auto-trigger sentiment analysis after scraping
+// In product-search-selection/index.jsx - Replace handleProductAnalyze function
+
+const handleProductAnalyze = async (product, action) => {
   if (action === 'scrape') {
     try {
       setIsProcessing(true);
       setProcessingType('scraping');
       setError(null);
       
-      console.log('🔄 Scraping product:', {
-        id: product.id,
-        title: product.title,
-        link: product.link,
-        hasLink: !!product.link
-      });
+      console.log('🔄 Scraping product:', product.title);
       
-      // Validate product has link
       if (!product.link) {
         setError('Product is missing link. Cannot scrape reviews.');
         return;
@@ -220,43 +217,49 @@ const ProductSearchSelection = () => {
       
       if (response.success && response.results && response.results.length > 0) {
         const result = response.results[0];
-        console.log('📊 Scrape result:', {
-          success: result.success,
-          reviewsCount: result.reviews?.length,
-          productId: result.id
-        });
         
-        setProducts(prev => prev.map(p => {
-          if (p.id === product.id) {
-            console.log(`🔄 Updating ${p.id} with ${result.reviews?.length || 0} reviews`);
-            return {
-              ...p,
-              reviews: result.reviews || []
-            };
+        // Update product with reviews
+        const updatedProduct = {
+          ...product,
+          reviews: result.reviews || []
+        };
+        
+        setProducts(prev => prev.map(p => 
+          p.id === product.id ? updatedProduct : p
+        ));
+        
+        setSuccessMessage(`Successfully scraped ${result.reviews?.length || 0} reviews`);
+        
+        // AUTO-TRIGGER SENTIMENT ANALYSIS with CORRECT format
+        if (result.reviews && result.reviews.length > 0) {
+          console.log('🤖 Auto-triggering sentiment analysis...');
+          
+          // Send in the new products format that the API expects
+          const analysisResponse = await ApiService.analyzeSentiment(
+            [updatedProduct.id],
+            [updatedProduct]  // This sends the product with reviews in the correct format
+          );
+          
+          if (analysisResponse.success) {
+            console.log('✅ Sentiment analysis completed');
+            // Navigate to results page with the analysis data
+            navigate('/reports-analytics', { 
+              state: { 
+                analysisData: analysisResponse.results[0],
+                productInfo: updatedProduct
+              } 
+            });
           }
-          return p;
-        }));
-        
-        setSuccessMessage(`Successfully scraped ${result.reviews?.length || 0} reviews for "${product.title}"`);
-      } else {
-        console.error('❌ Scrape failed:', response);
-        setError(`Failed to scrape reviews: ${response.error || 'Unknown error'}`);
+        }
       }
       
     } catch (error) {
-      console.error('💥 Exception during scrape:', error);
-      setError('Failed to scrape reviews. Please try again.');
+      console.error('💥 Exception during process:', error);
+      setError('Failed to process reviews. Please try again.');
     } finally {
       setIsProcessing(false);
       setProcessingType(null);
     }
-  } else if (action === 'sentiment') {
-    navigate('/sentiment-analysis-processing', { 
-      state: { 
-        products: [product],
-        mode: 'single'
-      } 
-    });
   }
 };
 

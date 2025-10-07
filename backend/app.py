@@ -993,61 +993,458 @@ def api_scrape_reviews():
 
 @app.route('/api/analyze-sentiment', methods=['POST'])
 def api_analyze_sentiment():
+    """Analyze sentiment for product reviews - FIXED VERSION"""
     try:
         data = request.get_json()
-        reviews = data.get('reviews', [])
         
-        print(f"📊 Analyzing {len(reviews)} reviews")
+        print("\n" + "="*70)
+        print("📊 SENTIMENT ANALYSIS REQUEST - FIXED")
+        print("="*70)
+        print(f"Request data: {data.keys() if data else 'No data'}")
         
-        if not reviews:
+        # Handle both formats but prioritize products array
+        products = data.get('products', [])
+        reviews_data = data.get('reviews', [])
+        
+        print(f"Products received: {len(products)}")
+        print(f"Raw reviews received: {len(reviews_data)}")
+        
+        # If we have products with reviews, use that format
+        if products and len(products) > 0:
+            print("🔄 Processing products format...")
+            results = []
+            
+            for product in products:
+                product_id = product.get('id', '')
+                product_title = product.get('title', 'Unknown Product')
+                reviews = product.get('reviews', [])
+                
+                print(f"📦 Product: {product_title[:50]}...")
+                print(f"   Reviews to analyze: {len(reviews)}")
+                
+                if not reviews:
+                    print(f"   ⚠️ No reviews to analyze")
+                    results.append({
+                        "id": product_id,
+                        "success": False,
+                        "error": "No reviews available for analysis",
+                        "sentiment_analysis": {
+                            "analyzed_reviews": [],
+                            "summary": {
+                                "total_reviews": 0,
+                                "positive_reviews": 0,
+                                "negative_reviews": 0,
+                                "neutral_reviews": 0,
+                                "positive_percentage": 0,
+                                "negative_percentage": 0,
+                                "neutral_percentage": 0,
+                                "sentiment_score": 0,
+                                "overall_sentiment": "neutral"
+                            }
+                        }
+                    })
+                    continue
+                
+                # Analyze reviews with proper sentiment analysis
+                analysis_result = analyze_reviews_comprehensive(reviews)
+                
+                print(f"   ✅ Analysis complete:")
+                print(f"      - Total: {analysis_result['summary']['total_reviews']}")
+                print(f"      - Positive: {analysis_result['summary']['positive_percentage']}%")
+                print(f"      - Negative: {analysis_result['summary']['negative_percentage']}%")
+                print(f"      - Neutral: {analysis_result['summary']['neutral_percentage']}%")
+                print(f"      - Overall: {analysis_result['summary']['overall_sentiment']}")
+                
+                results.append({
+                    "id": product_id,
+                    "success": True,
+                    "sentiment_analysis": analysis_result
+                })
+            
+            print(f"\n✅ ANALYSIS COMPLETE - Processed {len(results)} products")
+            
             return jsonify({
-                "success": False,
-                "error": "No reviews provided"
-            }), 400
-        
-        analyzed = []
-        counts = {"positive": 0, "negative": 0, "neutral": 0}
-        
-        for i, text in enumerate(reviews):
-            if not text or not isinstance(text, str):
-                continue
-            
-            result = analyze_sentiment(text)
-            counts[result["sentiment"]] += 1
-            
-            analyzed.append({
-                "review": text,
-                "sentiment": result
+                "success": True,
+                "results": results,
+                "message": f"Successfully analyzed {len(results)} products"
             })
         
-        total = len(analyzed)
-        summary = {
-            "positive": round((counts["positive"]/total)*100, 1) if total > 0 else 0,
-            "negative": round((counts["negative"]/total)*100, 1) if total > 0 else 0,
-            "neutral": round((counts["neutral"]/total)*100, 1) if total > 0 else 0
-        }
+        # Handle old format with just reviews array
+        elif reviews_data and len(reviews_data) > 0:
+            print("🔄 Processing old reviews format...")
+            analysis_result = analyze_reviews_comprehensive(reviews_data)
+            
+            return jsonify({
+                "success": True,
+                "analysis": analysis_result,
+                "message": f"Analyzed {analysis_result['summary']['total_reviews']} reviews"
+            })
         
-        return jsonify({
-            "success": True,
-            "analysis": {
-                "analyzed_reviews": analyzed,
-                "sentiment_summary": summary,
-                "total_reviews": total,
-                "overall_sentiment": max(summary.items(), key=lambda x: x[1])[0] if total > 0 else "neutral"
-            },
-            "message": f"Analyzed {total} reviews"
-        })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "No products or reviews provided for analysis"
+            }), 400
         
     except Exception as e:
-        print(f"ERROR in analyze-sentiment: {e}")
+        print(f"\n❌ ERROR in analyze-sentiment: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
             "success": False,
             "error": str(e)
         }), 500
-# Fixed api_complete_analysis route
 
+def analyze_reviews_comprehensive(reviews):
+    """Comprehensive sentiment analysis for reviews"""
+    from textblob import TextBlob
+    
+    analyzed_reviews = []
+    sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
+    sentiment_scores = []
+    
+    print(f"🔍 Analyzing {len(reviews)} reviews...")
+    
+    for i, review in enumerate(reviews):
+        # Extract text from review (handle both string and object formats)
+        if isinstance(review, dict):
+            text = review.get('text', '') or review.get('review', '') or str(review)
+            reviewer = review.get('reviewer', 'Anonymous')
+            date = review.get('date', 'Unknown')
+            rating = review.get('rating', None)
+        else:
+            text = str(review)
+            reviewer = 'Anonymous'
+            date = 'Unknown'
+            rating = None
+        
+        # Clean and validate text
+        if not text or len(text.strip()) < 3:
+            continue
+        
+        text = text.strip()
+        
+        # Analyze sentiment with TextBlob
+        try:
+            blob = TextBlob(text)
+            polarity = blob.sentiment.polarity
+            subjectivity = blob.sentiment.subjectivity
+            
+            # Enhanced sentiment classification
+            if polarity > 0.2:
+                sentiment = "positive"
+                score = min(100, int(60 + (polarity * 40)))  # 60-100 range
+            elif polarity < -0.2:
+                sentiment = "negative" 
+                score = max(0, int(40 + (polarity * 40)))   # 0-40 range
+            else:
+                sentiment = "neutral"
+                score = 50  # Middle ground
+            
+            # Calculate confidence based on polarity strength
+            confidence = min(95, int((abs(polarity) * 80) + 50))
+            
+            sentiment_counts[sentiment] += 1
+            sentiment_scores.append(score)
+            
+            analyzed_review = {
+                "text": text,
+                "reviewer": reviewer,
+                "date": date,
+                "rating": rating,
+                "sentiment_analysis": {
+                    "sentiment": sentiment,
+                    "score": score,
+                    "confidence": confidence,
+                    "polarity": round(polarity, 3),
+                    "subjectivity": round(subjectivity, 3)
+                }
+            }
+            
+            analyzed_reviews.append(analyzed_review)
+            
+            print(f"   Review {i+1}: {sentiment} (score: {score}, polarity: {polarity:.3f})")
+            
+        except Exception as e:
+            print(f"   ⚠️ Error analyzing review {i+1}: {e}")
+            continue
+    
+    # Calculate comprehensive summary
+    total_reviews = len(analyzed_reviews)
+    
+    if total_reviews == 0:
+        return {
+            "analyzed_reviews": [],
+            "summary": {
+                "total_reviews": 0,
+                "positive_reviews": 0,
+                "negative_reviews": 0,
+                "neutral_reviews": 0,
+                "positive_percentage": 0,
+                "negative_percentage": 0,
+                "neutral_percentage": 0,
+                "sentiment_score": 0,
+                "overall_sentiment": "neutral",
+                "average_confidence": 0
+            },
+            "insights": ["No valid reviews available for analysis"],
+            "analysis_timestamp": datetime.now().isoformat()
+        }
+    
+    # Calculate percentages
+    positive_percent = round((sentiment_counts["positive"] / total_reviews) * 100, 1)
+    negative_percent = round((sentiment_counts["negative"] / total_reviews) * 100, 1)
+    neutral_percent = round((sentiment_counts["neutral"] / total_reviews) * 100, 1)
+    
+    # Calculate overall sentiment score (weighted average)
+    avg_sentiment_score = round(sum(sentiment_scores) / len(sentiment_scores), 1) if sentiment_scores else 50
+    
+    # Determine overall sentiment
+    if positive_percent > negative_percent and positive_percent > neutral_percent:
+        overall_sentiment = "positive"
+    elif negative_percent > positive_percent and negative_percent > neutral_percent:
+        overall_sentiment = "negative"
+    else:
+        overall_sentiment = "neutral"
+    
+    # Calculate average confidence
+    avg_confidence = round(sum(r["sentiment_analysis"]["confidence"] for r in analyzed_reviews) / total_reviews, 1)
+    
+    print(f"📊 FINAL RESULTS:")
+    print(f"   Total: {total_reviews}")
+    print(f"   Positive: {positive_percent}% ({sentiment_counts['positive']})")
+    print(f"   Negative: {negative_percent}% ({sentiment_counts['negative']})") 
+    print(f"   Neutral: {neutral_percent}% ({sentiment_counts['neutral']})")
+    print(f"   Overall: {overall_sentiment} (score: {avg_sentiment_score})")
+    
+    return {
+        "analyzed_reviews": analyzed_reviews,
+        "summary": {
+            "total_reviews": total_reviews,
+            "positive_reviews": sentiment_counts["positive"],
+            "negative_reviews": sentiment_counts["negative"],
+            "neutral_reviews": sentiment_counts["neutral"],
+            "positive_percentage": positive_percent,
+            "negative_percentage": negative_percent,
+            "neutral_percentage": neutral_percent,
+            "sentiment_score": avg_sentiment_score,
+            "overall_sentiment": overall_sentiment,
+            "average_confidence": avg_confidence
+        },
+        "insights": generate_detailed_insights(sentiment_counts, total_reviews, avg_sentiment_score),
+        "analysis_timestamp": datetime.now().isoformat()
+    }
+def generate_detailed_insights(sentiment_counts, total_reviews, sentiment_score):
+    """Generate detailed insights based on analysis"""
+    insights = []
+    
+    positive = sentiment_counts["positive"]
+    negative = sentiment_counts["negative"] 
+    neutral = sentiment_counts["neutral"]
+    
+    if total_reviews == 0:
+        return ["No reviews available for analysis"]
+    
+    # Sentiment strength insights
+    if sentiment_score >= 70:
+        insights.append("Strong positive customer sentiment")
+    elif sentiment_score <= 30:
+        insights.append("Significant negative customer feedback")
+    else:
+        insights.append("Moderate customer sentiment")
+    
+    # Distribution insights
+    if positive > negative and positive > neutral:
+        insights.append(f"Positive reviews dominate ({positive}/{total_reviews})")
+        if positive >= total_reviews * 0.7:
+            insights.append("Excellent customer satisfaction levels")
+    elif negative > positive and negative > neutral:
+        insights.append(f"Negative feedback requires attention ({negative}/{total_reviews})")
+        if negative >= total_reviews * 0.4:
+            insights.append("Urgent action needed to address concerns")
+    else:
+        insights.append("Mixed customer opinions with neutral dominance")
+    
+    # Additional insights based on ratios
+    if positive >= total_reviews * 0.8:
+        insights.append("Outstanding product reception")
+    elif negative >= total_reviews * 0.5:
+        insights.append("Critical issues need immediate resolution")
+    
+    return insights
+  
+def handle_legacy_sentiment_analysis(reviews):
+    """Handle old format where just reviews array is sent"""
+    analyzed = []
+    counts = {"positive": 0, "negative": 0, "neutral": 0}
+    
+    for text in reviews:
+        if not text or not isinstance(text, str):
+            continue
+        
+        result = analyze_sentiment(text)
+        counts[result["sentiment"]] += 1
+        
+        analyzed.append({
+            "review": text,
+            "sentiment": result
+        })
+    
+    total = len(analyzed)
+    summary = {
+        "positive": round((counts["positive"]/total)*100, 1) if total > 0 else 0,
+        "negative": round((counts["negative"]/total)*100, 1) if total > 0 else 0,
+        "neutral": round((counts["neutral"]/total)*100, 1) if total > 0 else 0
+    }
+    
+    return jsonify({
+        "success": True,
+        "analysis": {
+            "analyzed_reviews": analyzed,
+            "sentiment_summary": summary,
+            "total_reviews": total,
+            "overall_sentiment": max(summary.items(), key=lambda x: x[1])[0] if total > 0 else "neutral"
+        },
+        "message": f"Analyzed {total} reviews"
+    })
+
+def analyze_reviews_fallback(reviews):
+    """Fallback sentiment analysis using TextBlob when trained model unavailable"""
+    from textblob import TextBlob
+    
+    analyzed_reviews = []
+    sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
+    scores = []
+    
+    for review in reviews:
+        # Extract text from review
+        if isinstance(review, dict):
+            text = review.get('text', '')
+            reviewer = review.get('reviewer', 'Anonymous')
+            date = review.get('date', 'Unknown')
+            rating = review.get('rating', None)
+        else:
+            text = str(review)
+            reviewer = 'Anonymous'
+            date = 'Unknown'
+            rating = None
+        
+        if not text or len(text.strip()) < 3:
+            continue
+        
+        # Analyze with TextBlob
+        blob = TextBlob(text)
+        polarity = blob.sentiment.polarity
+        subjectivity = blob.sentiment.subjectivity
+        
+        # Determine sentiment
+        if polarity > 0.1:
+            sentiment = "positive"
+            score = min(100, int(70 + (polarity * 30)))
+        elif polarity < -0.1:
+            sentiment = "negative"
+            score = max(0, int(30 + (polarity * 20)))
+        else:
+            sentiment = "neutral"
+            score = 50
+        
+        confidence = min(90, int(abs(polarity) * 100 + 50))
+        
+        sentiment_counts[sentiment] += 1
+        scores.append(score)
+        
+        analyzed_reviews.append({
+            "text": text,
+            "reviewer": reviewer,
+            "date": date,
+            "rating": rating,
+            "sentiment_analysis": {
+                "sentiment": sentiment,
+                "score": score,
+                "confidence": confidence,
+                "polarity": polarity,
+                "subjectivity": subjectivity
+            }
+        })
+    
+    # Calculate summary
+    total = len(analyzed_reviews)
+    
+    if total == 0:
+        return {
+            "analyzed_reviews": [],
+            "summary": {
+                "total_reviews": 0,
+                "positive_reviews": 0,
+                "negative_reviews": 0,
+                "neutral_reviews": 0,
+                "positive_percentage": 0,
+                "negative_percentage": 0,
+                "neutral_percentage": 0,
+                "sentiment_score": 0,
+                "overall_sentiment": "neutral",
+                "average_confidence": 0
+            },
+            "insights": ["No reviews available for analysis"],
+            "analysis_timestamp": datetime.now().isoformat()
+        }
+    
+    positive_percent = round((sentiment_counts["positive"] / total) * 100, 1)
+    negative_percent = round((sentiment_counts["negative"] / total) * 100, 1)
+    neutral_percent = round((sentiment_counts["neutral"] / total) * 100, 1)
+    
+    # Determine overall sentiment
+    if positive_percent > negative_percent and positive_percent > neutral_percent:
+        overall_sentiment = "positive"
+    elif negative_percent > positive_percent and negative_percent > neutral_percent:
+        overall_sentiment = "negative"
+    else:
+        overall_sentiment = "neutral"
+    
+    avg_score = round(sum(scores) / len(scores), 1) if scores else 0
+    avg_confidence = round(sum(r["sentiment_analysis"]["confidence"] for r in analyzed_reviews) / total, 1)
+    
+    return {
+        "analyzed_reviews": analyzed_reviews,
+        "summary": {
+            "total_reviews": total,
+            "positive_reviews": sentiment_counts["positive"],
+            "negative_reviews": sentiment_counts["negative"],
+            "neutral_reviews": sentiment_counts["neutral"],
+            "positive_percentage": positive_percent,
+            "negative_percentage": negative_percent,
+            "neutral_percentage": neutral_percent,
+            "sentiment_score": avg_score,
+            "overall_sentiment": overall_sentiment,
+            "average_confidence": avg_confidence
+        },
+        "insights": generate_insights_simple(sentiment_counts, total, avg_score),
+        "analysis_timestamp": datetime.now().isoformat()
+    }
+def generate_insights_simple(sentiment_counts, total, sentiment_score):
+    """Generate simple insights"""
+    insights = []
+    
+    positive = sentiment_counts["positive"]
+    negative = sentiment_counts["negative"]
+    neutral = sentiment_counts["neutral"]
+    
+    if total == 0:
+        return ["No reviews available for analysis"]
+    
+    if positive > negative and positive > neutral:
+        insights.append(f"Strong positive sentiment ({positive}/{total} reviews)")
+        if sentiment_score > 70:
+            insights.append("High customer satisfaction levels")
+    elif negative > positive and negative > neutral:
+        insights.append(f"Significant negative feedback ({negative}/{total} reviews)")
+        if sentiment_score < 30:
+            insights.append("Urgent attention needed for product issues")
+    else:
+        insights.append("Mixed customer opinions")
+    
+    return insights
+  
 @app.route('/api/complete-analysis', methods=['POST'])
 def api_complete_analysis():
     """Complete workflow: scrape reviews and analyze sentiment for a single product"""

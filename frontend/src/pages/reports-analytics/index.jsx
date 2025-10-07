@@ -661,24 +661,45 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
 
       {analysisData?.reviews && analysisData.reviews.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-black mb-4">Sample Reviews</h3>
-          <div className="space-y-3 max-h-60 overflow-y-auto">
-            {analysisData.reviews.slice(0, 5).map((review, index) => (
-              <div key={index} className="p-3 bg-gray-50 rounded-lg border">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-sm font-medium text-gray-700">
-                    {review.reviewer || 'Anonymous'}
+          <h3 className="text-lg font-semibold text-black mb-4">
+            Customer Reviews ({analysisData.reviews.length} total)
+          </h3>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {analysisData.reviews.map((review, index) => (
+              <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-sm font-medium text-gray-800">
+                    {review.reviewer || 'Anonymous Customer'}
                   </span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
                     {review.date || 'Unknown date'}
                   </span>
                 </div>
-                <p className="text-sm text-gray-800">{review.text}</p>
-                {review.rating && (
-                  <div className="mt-2 text-xs text-gray-600">
-                    Rating: {review.rating}
-                  </div>
-                )}
+                <p className="text-sm text-gray-700 mb-2 leading-relaxed">{review.text}</p>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200">
+                  {review.rating && (
+                    <div className="flex items-center text-xs text-gray-600">
+                      <span className="font-medium">Rating:</span>
+                      <span className="ml-1 text-yellow-600 font-semibold">{review.rating}/5</span>
+                    </div>
+                  )}
+                  {analysisData.sentiment_analysis?.analyzed_reviews?.[index] && (
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-xs px-2 py-1 rounded font-medium ${
+                        analysisData.sentiment_analysis.analyzed_reviews[index].sentiment_analysis.sentiment === 'positive' 
+                          ? 'bg-green-100 text-green-800' 
+                          : analysisData.sentiment_analysis.analyzed_reviews[index].sentiment_analysis.sentiment === 'negative'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {analysisData.sentiment_analysis.analyzed_reviews[index].sentiment_analysis.sentiment.toUpperCase()}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {analysisData.sentiment_analysis.analyzed_reviews[index].sentiment_analysis.confidence}% confident
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
