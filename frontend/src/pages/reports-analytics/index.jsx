@@ -126,7 +126,7 @@ const ReportsAnalytics = () => {
     { id: 'export', label: 'Export', icon: 'Download' }
   ];
 
-  const keyMetrics = analysisStats ? [
+const keyMetrics = analysisStats ? [
     { 
       title: 'Total Reviews', 
       value: analysisStats.total_reviews?.toString() || '0', 
@@ -139,21 +139,21 @@ const ReportsAnalytics = () => {
       value: `${analysisStats.sentiment_score || 0}%`, 
       change: (analysisStats.sentiment_score || 0) > 50 ? '+5%' : '-2%', 
       trend: (analysisStats.sentiment_score || 0) > 50 ? 'up' : 'down', 
-      color: (analysisStats.sentiment_score || 0) > 70 ? '#10b981' : (analysisStats.sentiment_score || 0) < 40 ? '#ef4444' : '#e40046'
+      color: (analysisStats.sentiment_score || 0) > 70 ? '#6ee7b7' : (analysisStats.sentiment_score || 0) < 40 ? '#ef4444' : '#e40046'
     },
     { 
       title: 'Positive Reviews', 
       value: `${analysisStats.positive_percentage || 0}%`, 
       change: (analysisStats.positive_percentage || 0) > 50 ? '+3%' : '-1%', 
       trend: (analysisStats.positive_percentage || 0) > 50 ? 'up' : 'down', 
-      color: '#10b981'
+      color: '#6ee7b7'
     },
     { 
       title: 'Negative Reviews', 
       value: `${analysisStats.negative_percentage || 0}%`, 
       change: (analysisStats.negative_percentage || 0) > 30 ? '+4%' : '-2%', 
       trend: (analysisStats.negative_percentage || 0) > 30 ? 'up' : 'down', 
-      color: (analysisStats.negative_percentage || 0) > 30 ? '#ef4444' : '#e40046'
+      color: (analysisStats.negative_percentage || 0) > 30 ? '#fca5a5' : '#ef4444'
     }
   ] : [];
 
