@@ -5,6 +5,7 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import sentimentService from '../../../services/sentimentService';
+import authService from '../../../services/authService';
 
 const ProductCard = ({ 
   product, 
@@ -59,6 +60,15 @@ const ProductCard = ({
   };
 
 const handleScrapeReviews = async () => {
+  // Check authentication BEFORE scraping
+  if (!authService.isAuthenticated()) {
+    alert('Please log in to scrape reviews');
+    navigate('/user-authentication', { 
+      state: { from: '/product-search-selection' } 
+    });
+    return;
+  }
+
   if (!product?.link) {
     alert('Product link is required for scraping reviews');
     return;
@@ -70,18 +80,15 @@ const handleScrapeReviews = async () => {
   try {
     console.log('🔄 Starting complete analysis for product:', product.title);
     
-    // Use the corrected completeAnalysis method
     const result = await sentimentService.completeAnalysis(product);
 
     console.log('📊 Analysis result:', result);
 
     if (result.success) {
-      // Save to localStorage for offline access
       sentimentService.saveToLocalStorage(result);
 
       console.log('✅ Analysis successful, navigating to dashboard');
       
-      // Navigate to dashboard with the analysis data
       navigate('/reports-analytics', {
         state: {
           analysisData: result.product,
@@ -95,13 +102,22 @@ const handleScrapeReviews = async () => {
     }
   } catch (error) {
     console.error('💥 Error in sentiment analysis:', error);
-    alert(`Failed to analyze sentiment: ${error.message}`);
+    
+    // Check for authentication errors
+    if (error.message.includes('Authentication') || 
+        error.message.includes('AUTHENTICATION_REQUIRED')) {
+      alert('Your session has expired. Please log in again.');
+      navigate('/user-authentication', { 
+        state: { from: '/product-search-selection' } 
+      });
+    } else {
+      alert(`Failed to analyze sentiment: ${error.message}`);
+    }
   } finally {
     setIsProcessing(false);
     setProcessingStep('');
   }
 };
-
   const handleAnalyzeSentiment = async () => {
     if (!product?.reviews || product.reviews.length === 0) {
       alert('No reviews available for sentiment analysis. Please scrape reviews first.');

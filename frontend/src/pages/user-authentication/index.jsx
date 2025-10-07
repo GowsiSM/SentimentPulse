@@ -1,6 +1,7 @@
 // src/pages/user-authentication/index.jsx
+// Update to handle redirect after login
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import AuthTabs from './components/AuthTabs';
 import AuthHeader from './components/AuthHeader';
@@ -14,12 +15,17 @@ const UserAuthentication = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get the page they were trying to access
+  const from = location.state?.from || '/product-search-selection';
 
   useEffect(() => {
+    // If already authenticated, redirect
     if (authService.isAuthenticated()) {
-      navigate('/product-search-selection');
+      navigate(from, { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, from]);
 
   const handleLogin = async (formData) => {
     setLoading(true);
@@ -27,7 +33,8 @@ const UserAuthentication = () => {
 
     try {
       await authService.login(formData);
-      navigate('/product-search-selection');
+      // Redirect to the page they were trying to access
+      navigate(from, { replace: true });
     } catch (error) {
       setError(error.message || 'Login failed. Please try again.');
     } finally {
@@ -41,7 +48,8 @@ const UserAuthentication = () => {
 
     try {
       await authService.register(formData);
-      navigate('/product-search-selection');
+      // Redirect to the page they were trying to access
+      navigate(from, { replace: true });
     } catch (error) {
       setError(error.message || 'Registration failed. Please try again.');
     } finally {
@@ -57,6 +65,7 @@ const UserAuthentication = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header 
+        showAuth={false}
         onSearchClick={() => {}}
         onHistoryClick={() => {}}
       />
@@ -90,7 +99,6 @@ const UserAuthentication = () => {
         </div>
       </div>
 
-      {/* Background decoration */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-40 -right-32 w-80 h-80 bg-primary/5 rounded-full blur-3xl"></div>
         <div className="absolute -bottom-40 -left-32 w-80 h-80 bg-accent/5 rounded-full blur-3xl"></div>
