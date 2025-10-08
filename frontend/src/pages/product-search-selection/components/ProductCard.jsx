@@ -59,65 +59,66 @@ const ProductCard = ({
     }
   };
 
-const handleScrapeReviews = async () => {
-  // Check authentication BEFORE scraping
-  if (!authService.isAuthenticated()) {
-    alert('Please log in to scrape reviews');
-    navigate('/user-authentication', { 
-      state: { from: '/product-search-selection' } 
-    });
-    return;
-  }
-
-  if (!product?.link) {
-    alert('Product link is required for scraping reviews');
-    return;
-  }
-
-  setIsProcessing(true);
-  setProcessingStep('Scraping reviews...');
-
-  try {
-    console.log('🔄 Starting complete analysis for product:', product.title);
-    
-    const result = await sentimentService.completeAnalysis(product);
-
-    console.log('📊 Analysis result:', result);
-
-    if (result.success) {
-      sentimentService.saveToLocalStorage(result);
-
-      console.log('✅ Analysis successful, navigating to dashboard');
-      
-      navigate('/reports-analytics', {
-        state: {
-          analysisData: result.product,
-          analysisStats: result.stats,
-          productInfo: product
-        }
-      });
-    } else {
-      console.error('❌ Analysis failed:', result.error);
-      throw new Error(result.error || 'Analysis failed');
-    }
-  } catch (error) {
-    console.error('💥 Error in sentiment analysis:', error);
-    
-    // Check for authentication errors
-    if (error.message.includes('Authentication') || 
-        error.message.includes('AUTHENTICATION_REQUIRED')) {
-      alert('Your session has expired. Please log in again.');
+  const handleScrapeReviews = async () => {
+    // Check authentication BEFORE scraping
+    if (!authService.isAuthenticated()) {
+      alert('Please log in to scrape reviews');
       navigate('/user-authentication', { 
         state: { from: '/product-search-selection' } 
       });
-    } else {
-      alert(`Failed to analyze sentiment: ${error.message}`);
+      return;
     }
-  } finally {
-    setIsProcessing(false);
-    setProcessingStep('');
-  }
-};
+
+    if (!product?.link) {
+      alert('Product link is required for scraping reviews');
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessingStep('Scraping reviews...');
+
+    try {
+      console.log('🔄 Starting complete analysis for product:', product.title);
+      
+      const result = await sentimentService.completeAnalysis(product);
+
+      console.log('📊 Analysis result:', result);
+
+      if (result.success) {
+        sentimentService.saveToLocalStorage(result);
+
+        console.log('✅ Analysis successful, navigating to dashboard');
+        
+        navigate('/reports-analytics', {
+          state: {
+            analysisData: result.product,
+            analysisStats: result.stats,
+            productInfo: product
+          }
+        });
+      } else {
+        console.error('❌ Analysis failed:', result.error);
+        throw new Error(result.error || 'Analysis failed');
+      }
+    } catch (error) {
+      console.error('💥 Error in sentiment analysis:', error);
+      
+      // Check for authentication errors
+      if (error.message.includes('Authentication') || 
+          error.message.includes('AUTHENTICATION_REQUIRED')) {
+        alert('Your session has expired. Please log in again.');
+        navigate('/user-authentication', { 
+          state: { from: '/product-search-selection' } 
+        });
+      } else {
+        alert(`Failed to analyze sentiment: ${error.message}`);
+      }
+    } finally {
+      setIsProcessing(false);
+      setProcessingStep('');
+    }
+  };
+
   const handleAnalyzeSentiment = async () => {
     if (!product?.reviews || product.reviews.length === 0) {
       alert('No reviews available for sentiment analysis. Please scrape reviews first.');
@@ -146,7 +147,7 @@ const handleScrapeReviews = async () => {
         };
         
         sentimentService.saveToLocalStorage(completeResult);
-// Navigate to REPORTS & ANALYTICS
+        // Navigate to REPORTS & ANALYTICS
         navigate('/reports-analytics', {
           state: {
             analysisData: completeResult.product,
@@ -169,7 +170,7 @@ const handleScrapeReviews = async () => {
   // Grid view layout with image
   if (viewMode === 'grid') {
     return (
-      <div className={`bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg transition-all duration-200 ${isSelected ? 'ring-2 ring-primary' : ''} ${className}`}>
+      <div className={`bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg transition-all duration-200 ${isSelected ? 'ring-2 ring-primary' : ''} hover:bg-red-50/80 hover:border-red-200 ${className}`}>
         {/* Product Image */}
         <div className="relative aspect-square bg-muted">
           {product?.imageUrl && !imageError ? (
@@ -234,7 +235,7 @@ const handleScrapeReviews = async () => {
               <div className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 shadow-sm">
                 <Icon name="CheckCircle" size={12} />
                 <span className="font-medium">
-                  {product.reviews.length} reviews
+                  Reviews Available
                 </span>
               </div>
             </div>
@@ -331,19 +332,15 @@ const handleScrapeReviews = async () => {
             )}
           </div>
 
-          {/* Footer Stats */}
-          <div className="flex items-center justify-between pt-3 border-t border-border text-xs text-muted-foreground">
-            <div className="flex items-center space-x-1">
-              <Icon name="MessageSquare" size={12} />
-              <span>{product?.reviews?.length || 0} reviews</span>
-            </div>
-            {product?.lastUpdated && (
-              <div className="flex items-center space-x-1">
-                <Icon name="Clock" size={12} />
-                <span>Updated {product.lastUpdated}</span>
-              </div>
-            )}
-          </div>
+          {/* Footer Stats - Updated time on right side */}
+<div className="flex items-center justify-between pt-3 border-t border-border">
+  {product?.lastUpdated && (
+    <div className="flex items-center gap-1 text-[10px] text-muted-foreground ml-auto">
+      <Icon name="Clock" size={10} />
+      <span>Updated {product.lastUpdated}</span>
+    </div>
+  )}
+</div>
         </div>
       </div>
     );
@@ -374,17 +371,13 @@ const handleScrapeReviews = async () => {
                 {product?.title}
               </h3>
               
-              {/* Price and Review Count Row */}
+              {/* Price and Status Row */}
               <div className="flex items-center space-x-4 text-sm">
                 {product?.price && (
                   <span className="font-semibold text-primary">
                     {formatPrice(product.price)}
                   </span>
                 )}
-                <span className="text-muted-foreground flex items-center space-x-1">
-                  <Icon name="MessageSquare" size={12} />
-                  <span>{product?.reviews?.length || 0} reviews</span>
-                </span>
                 {product?.lastUpdated && (
                   <span className="text-muted-foreground flex items-center space-x-1">
                     <Icon name="Clock" size={12} />
