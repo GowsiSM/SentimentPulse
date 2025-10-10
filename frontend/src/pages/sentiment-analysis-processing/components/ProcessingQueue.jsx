@@ -6,18 +6,18 @@ import Button from '../../../components/ui/Button';
 const ProcessingQueue = ({ queueItems = [], onPauseItem, onResumeItem, onRemoveItem }) => {
   const getStatusColor = (status) => {
     switch (status) {
-      case 'processing': return 'text-blue-600';
-      case 'completed': return 'text-green-600';
-      case 'paused': return 'text-yellow-600';
-      case 'failed': return 'text-red-600';
-      case 'queued': return 'text-gray-500';
-      default: return 'text-gray-500';
+      case 'processing': return 'text-blue-600 bg-blue-100 border-blue-200';
+      case 'completed': return 'text-green-600 bg-green-100 border-green-200';
+      case 'paused': return 'text-yellow-600 bg-yellow-100 border-yellow-200';
+      case 'failed': return 'text-red-600 bg-red-100 border-red-200';
+      case 'queued': return 'text-gray-600 bg-gray-100 border-gray-200';
+      default: return 'text-gray-500 bg-gray-100 border-gray-200';
     }
   };
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'processing': return 'Loader';
+      case 'processing': return 'Activity';
       case 'completed': return 'CheckCircle';
       case 'paused': return 'Pause';
       case 'failed': return 'XCircle';
@@ -49,36 +49,46 @@ const ProcessingQueue = ({ queueItems = [], onPauseItem, onResumeItem, onRemoveI
           queueItems.map((item) => (
             <div
               key={item.id}
-              className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+              className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors relative"
             >
+              {/* Active Processing Indicator */}
+              {item.status === 'processing' && (
+                <div className="absolute top-4 left-4 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              )}
+              
               <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                <div className="flex-1">
+                <div className="flex-1 ml-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Icon
-                      name={getStatusIcon(item.status)}
-                      size={16}
-                      className={`${getStatusColor(item.status)} ${
-                        item.status === 'processing' ? 'animate-spin' : ''
-                      }`}
-                    />
-                    <span className={`text-sm font-medium ${getStatusColor(item.status)}`}>
-                      {getStatusLabel(item.status)}
-                    </span>
+                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${getStatusColor(item.status)}`}>
+                      <Icon
+                        name={getStatusIcon(item.status)}
+                        size={14}
+                      />
+                      <span className="text-sm font-medium">
+                        {getStatusLabel(item.status)}
+                      </span>
+                    </div>
                   </div>
                   
                   <h4 className="font-medium text-gray-900 mb-1">{item.productName}</h4>
                   <p className="text-sm text-gray-500 mb-2 break-all">{item.url}</p>
                   
                   {item.status === 'processing' && item.progress && (
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${item.progress}%` }}
-                      ></div>
+                    <div className="space-y-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${item.progress}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>Processing...</span>
+                        <span>{item.progress}%</span>
+                      </div>
                     </div>
                   )}
                   
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                  <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
                     <span>Reviews: {item.reviewsFound || 0}</span>
                     {item.startTime && <span>Started: {item.startTime}</span>}
                     {item.estimatedCompletion && (

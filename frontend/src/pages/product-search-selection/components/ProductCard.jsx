@@ -177,7 +177,7 @@ const ProductCard = ({
             <>
               {/* Loading skeleton while image loads */}
               {!imageLoaded && (
-                <div className="absolute inset-0 bg-muted animate-pulse flex items-center justify-center">
+                <div className="absolute inset-0 bg-muted flex items-center justify-center">
                   <Icon name="ImageIcon" size={32} className="text-muted-foreground/50" />
                 </div>
               )}
@@ -223,7 +223,9 @@ const ProductCard = ({
           {isProcessing && (
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
               <div className="text-white text-center">
-                <Icon name="Loader2" size={24} className="animate-spin mb-2" />
+                <div className="flex items-center justify-center mb-2">
+                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-pulse"></div>
+                </div>
                 <div className="text-sm font-medium">{processingStep}</div>
               </div>
             </div>
@@ -307,10 +309,10 @@ const ProductCard = ({
               variant="outline"
               size="sm"
               onClick={handleScrapeReviews}
-              iconName={isProcessing ? "Loader2" : "Download"}
+              iconName={isProcessing ? "Clock" : "Download"}
               iconPosition="left"
               iconSize={14}
-              className={`w-full ${isProcessing ? "animate-spin" : ""}`}
+              className="w-full"
               disabled={isProcessing}
             >
               {isProcessing ? processingStep : "Scrape & Analyze"}
@@ -321,10 +323,10 @@ const ProductCard = ({
                 variant="default"
                 size="sm"
                 onClick={handleAnalyzeSentiment}
-                iconName={isProcessing ? "Loader2" : "BarChart3"}
+                iconName={isProcessing ? "Clock" : "BarChart3"}
                 iconPosition="left"
                 iconSize={14}
-                className={`w-full ${isProcessing ? "animate-spin" : ""}`}
+                className="w-full"
                 disabled={isProcessing}
               >
                 {isProcessing ? processingStep : "Analyze Sentiment"}
@@ -333,14 +335,14 @@ const ProductCard = ({
           </div>
 
           {/* Footer Stats - Updated time on right side */}
-<div className="flex items-center justify-between pt-3 border-t border-border">
-  {product?.lastUpdated && (
-    <div className="flex items-center gap-1 text-[10px] text-muted-foreground ml-auto">
-      <Icon name="Clock" size={10} />
-      <span>Updated {product.lastUpdated}</span>
-    </div>
-  )}
-</div>
+          <div className="flex items-center justify-between pt-3 border-t border-border">
+            {product?.lastUpdated && (
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground ml-auto">
+                <Icon name="Clock" size={10} />
+                <span>Updated {product.lastUpdated}</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -424,7 +426,7 @@ const ProductCard = ({
                 )}
                 {isProcessing && (
                   <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                    <Icon name="Loader2" size={12} className="animate-spin" />
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
                     <span>{processingStep}</span>
                   </span>
                 )}
@@ -438,11 +440,10 @@ const ProductCard = ({
               size="sm"
               variant="outline"
               onClick={handleScrapeReviews}
-              iconName={isProcessing ? "Loader2" : "Download"}
+              iconName={isProcessing ? "Clock" : "Download"}
               iconPosition="left"
               iconSize={14}
               disabled={isProcessing}
-              className={isProcessing ? "animate-spin" : ""}
             >
               {isProcessing ? "Processing..." : "Scrape & Analyze"}
             </Button>
@@ -451,11 +452,10 @@ const ProductCard = ({
                 size="sm"
                 variant="default"
                 onClick={handleAnalyzeSentiment}
-                iconName={isProcessing ? "Loader2" : "BarChart3"}
+                iconName={isProcessing ? "Clock" : "BarChart3"}
                 iconPosition="left"
                 iconSize={14}
                 disabled={isProcessing}
-                className={isProcessing ? "animate-spin" : ""}
               >
                 {isProcessing ? "Analyzing..." : "Analyze Sentiment"}
               </Button>
