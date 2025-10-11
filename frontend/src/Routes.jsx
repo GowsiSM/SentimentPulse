@@ -11,6 +11,7 @@ import ProductSearchSelection from './pages/product-search-selection';
 import ReportsAnalytics from './pages/reports-analytics';
 import Home from './pages/Home';
 import ProtectedRoute from './components/ProtectedRoute';
+import ReviewScrapingProcessing from './pages/review-scraping-processing';
 
 const Routes = () => {
   return (
@@ -55,6 +56,7 @@ const Routes = () => {
               </ProtectedRoute>
             } 
           />
+          <Route path="/review-scraping-processing" element={<ReviewScrapingProcessing />} />
           
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />

@@ -190,6 +190,8 @@ const ProductSearchSelection = () => {
 // FIXED: Auto-trigger sentiment analysis after scraping
 // In product-search-selection/index.jsx - Replace handleProductAnalyze function
 
+// In your product-search-selection/index.jsx - Update the handleProductAnalyze function
+
 const handleProductAnalyze = async (product, action) => {
   if (action === 'scrape') {
     try {
@@ -201,6 +203,8 @@ const handleProductAnalyze = async (product, action) => {
       
       if (!product.link) {
         setError('Product is missing link. Cannot scrape reviews.');
+        setIsProcessing(false);
+        setProcessingType(null);
         return;
       }
       
@@ -240,17 +244,25 @@ const handleProductAnalyze = async (product, action) => {
             [updatedProduct]  // This sends the product with reviews in the correct format
           );
           
-          if (analysisResponse.success) {
-            console.log('✅ Sentiment analysis completed');
-            // Navigate to results page with the analysis data
+          if (analysisResponse.success && analysisResponse.results && analysisResponse.results.length > 0) {
+            console.log('✅ Sentiment analysis completed, navigating to reports');
+            
+            // Navigate to REPORTS & ANALYTICS with the analysis data
             navigate('/reports-analytics', { 
               state: { 
                 analysisData: analysisResponse.results[0],
-                productInfo: updatedProduct
+                productInfo: updatedProduct,
+                mode: 'single'
               } 
             });
+          } else {
+            throw new Error('Sentiment analysis returned no results');
           }
+        } else {
+          setError('No reviews were scraped from this product');
         }
+      } else {
+        setError('Failed to scrape reviews. Please try again.');
       }
       
     } catch (error) {
@@ -263,50 +275,101 @@ const handleProductAnalyze = async (product, action) => {
   }
 };
 
-  const handleBulkScrape = async () => {
-    const selectedProductData = products.filter(p => 
-      selectedProducts.includes(p.id)
+// In your main index.jsx - Update the handleBulkScrape function
+
+// In your product-search-selection/index.jsx - Update the handleBulkScrape function
+
+const handleBulkScrape = async () => {
+  const selectedProductData = products.filter(p => 
+    selectedProducts.includes(p.id)
+  );
+  
+  // Validate products have links
+  const productsWithValidLinks = selectedProductData.filter(p => p.link);
+  const productsWithoutLinks = selectedProductData.filter(p => !p.link);
+  
+  if (productsWithoutLinks.length > 0) {
+    setError(`${productsWithoutLinks.length} products are missing links and cannot be scraped.`);
+    return;
+  }
+  
+  if (productsWithValidLinks.length === 0) {
+    setError('No selected products have valid links for scraping.');
+    return;
+  }
+
+  setIsProcessing(true);
+  setProcessingType('scraping');
+  setError(null);
+  
+  try {
+    console.log(`🔄 Starting bulk scrape for ${productsWithValidLinks.length} products`);
+    
+    const response = await ApiService.scrapeReviews(
+      selectedProducts, 
+      productsWithValidLinks
     );
     
-    setIsProcessing(true);
-    setProcessingType('scraping');
-    setError(null);
+    console.log('📨 Bulk scrape response:', response);
     
-    try {
-      const response = await ApiService.scrapeReviews(selectedProducts, selectedProductData);
+    if (response.success && response.results && response.results.length > 0) {
+      // Update products with scraped reviews
+      const updatedProducts = products.map(p => {
+        const updatedProduct = response.results.find(r => r.id === p.id);
+        if (updatedProduct) {
+          return {
+            ...p,
+            reviews: updatedProduct.reviews || [],
+            lastUpdated: new Date().toLocaleDateString()
+          };
+        }
+        return p;
+      });
       
-      if (response.success) {
-        setProducts(prev => prev.map(p => {
-          if (selectedProducts.includes(p.id)) {
-            const updatedProduct = response.results.find(r => r.id === p.id);
-            return updatedProduct ? {
-              ...p,
-              reviews: updatedProduct.reviews || []
-            } : p;
-          }
-          return p;
-        }));
+      setProducts(updatedProducts);
+      setSuccessMessage(`Successfully scraped ${response.total_reviews} reviews from ${response.results.length} products`);
+      
+      // AUTO-TRIGGER SENTIMENT ANALYSIS for all scraped products
+      console.log('🤖 Auto-triggering sentiment analysis for bulk products...');
+      
+      const productsWithReviews = response.results.filter(p => p.reviews && p.reviews.length > 0);
+      
+      if (productsWithReviews.length > 0) {
+        const analysisResponse = await ApiService.analyzeSentiment(
+          productsWithReviews.map(p => p.id),
+          productsWithReviews
+        );
         
-        setSuccessMessage(`Successfully scraped reviews for ${selectedProducts.length} products`);
-        
-        navigate('/review-scraping-processing', { 
-          state: { 
-            products: selectedProductData,
-            mode: 'bulk',
-            results: response.results
-          } 
-        });
+        if (analysisResponse.success) {
+          console.log('✅ Bulk sentiment analysis completed, navigating to reports');
+          
+          // Navigate to REPORTS & ANALYTICS with all analyzed data
+          navigate('/reports-analytics', { 
+            state: { 
+              analysisData: analysisResponse.results,
+              productInfo: productsWithReviews,
+              mode: 'bulk',
+              totalProducts: productsWithReviews.length,
+              totalReviews: response.total_reviews
+            } 
+          });
+        } else {
+          throw new Error('Sentiment analysis failed after scraping');
+        }
       } else {
-        setError(`Failed to scrape reviews: ${response.error}`);
+        setError('No reviews were scraped from any products');
       }
-    } catch (error) {
-      console.error('Failed to start bulk scraping:', error);
-      setError('Failed to start bulk scraping. Please try again.');
-    } finally {
-      setIsProcessing(false);
-      setProcessingType(null);
+    } else {
+      setError(`Failed to scrape reviews: ${response.error || 'No results returned'}`);
     }
-  };
+  } catch (error) {
+    console.error('💥 Failed to start bulk scraping:', error);
+    setError(`Failed to start bulk scraping: ${error.message}`);
+  } finally {
+    setIsProcessing(false);
+    setProcessingType(null);
+  }
+};
 
   const handleBulkAnalyze = async () => {
     const selectedProductData = products.filter(p => 

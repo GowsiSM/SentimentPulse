@@ -1,4 +1,4 @@
-// src/services/api.js - Fixed version with proper ES6 imports
+// src/services/api.js - Fixed version with proper bulk operations
 import authService from './authService';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -98,43 +98,139 @@ class ApiService {
     }
   }
 
-  // Scrape reviews - REQUIRES AUTH
+  // Scrape reviews - REQUIRES AUTH - FIXED BULK VERSION
   static async scrapeReviews(productIds, products = []) {
     try {
       // Check authentication before making request
       this.ensureAuthenticated();
       
-      console.log(`Scraping reviews for ${productIds.length} products`);
+      console.log(`🔄 Scraping reviews for ${productIds.length} products`);
       
-      const productsToScrape = products.length > 0 
-        ? products.filter(p => productIds.includes(p.id))
-        : [];
+      // Validate input
+      if (!productIds || productIds.length === 0) {
+        throw new Error('No product IDs provided');
+      }
 
-      console.log('Products being sent:', productsToScrape);
+      // Prepare products data - ensure we have valid products with links
+      const productsToScrape = products.filter(p => 
+        p && p.id && p.link && productIds.includes(p.id)
+      );
+
+      if (productsToScrape.length === 0) {
+        throw new Error('No valid products with links found for scraping');
+      }
+
+      console.log('📦 Products being sent for scraping:', productsToScrape.map(p => ({
+        id: p.id,
+        title: p.title?.substring(0, 50),
+        link: p.link,
+        hasLink: !!p.link
+      })));
 
       const requestData = {
         product_ids: productIds,
         products: productsToScrape
       };
 
+      console.log('📨 Sending bulk scrape request...');
+      
       const response = await this.request('/scrape-reviews', {
         method: 'POST',
         body: JSON.stringify(requestData)
       });
 
-      console.log('Scrape response:', response);
+      console.log('✅ Scrape response received:', {
+        success: response.success,
+        total_products: response.total_products,
+        total_reviews: response.total_reviews,
+        results_count: response.results?.length
+      });
 
+      // Handle different response formats
       const results = response.results || [];
       const totalReviews = response.total_reviews || 0;
+      const totalProducts = response.total_products || results.length;
+
+      // Validate results
+      if (!response.success) {
+        throw new Error(response.error || 'Scraping failed on server');
+      }
+
+      if (results.length === 0) {
+        throw new Error('No reviews were scraped from any products');
+      }
 
       return {
-        success: response.success !== false,
+        success: true,
         results: results,
         total_reviews: totalReviews,
-        message: response.message || `Reviews scraped for ${productIds.length} products`
+        total_products: totalProducts,
+        message: response.message || `Successfully scraped ${totalReviews} reviews from ${totalProducts} products`
       };
     } catch (error) {
-      console.error('Failed to scrape reviews:', error);
+      console.error('❌ Failed to scrape reviews:', error);
+      
+      if (error.message === 'AUTHENTICATION_REQUIRED') {
+        window.location.href = '/user-authentication';
+      }
+      
+      return {
+        success: false,
+        results: [],
+        total_reviews: 0,
+        total_products: 0,
+        error: error.message
+      };
+    }
+  }
+
+  // Analyze sentiment - REQUIRES AUTH (optional, can be made optional)
+  static async analyzeSentiment(productIds, products = []) {
+    try {
+      // Optional auth check - comment out if you want it public
+      // this.ensureAuthenticated();
+      
+      console.log(`🧠 Analyzing sentiment for ${productIds.length} products`);
+      
+      // Prepare products data for analysis
+      const productsToAnalyze = products.filter(p => 
+        p && p.id && p.reviews && p.reviews.length > 0 && productIds.includes(p.id)
+      );
+
+      if (productsToAnalyze.length === 0) {
+        throw new Error('No products with reviews available for analysis');
+      }
+
+      console.log('📊 Products being analyzed:', productsToAnalyze.map(p => ({
+        id: p.id,
+        title: p.title?.substring(0, 50),
+        review_count: p.reviews?.length || 0
+      })));
+
+      const response = await this.request('/analyze-sentiment', {
+        method: 'POST',
+        body: JSON.stringify({
+          product_ids: productIds,
+          products: productsToAnalyze
+        })
+      });
+
+      console.log('✅ Sentiment analysis response:', {
+        success: response.success,
+        results_count: response.results?.length
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'Sentiment analysis failed');
+      }
+
+      return {
+        success: true,
+        results: response.results || [],
+        message: response.message || `Sentiment analysis completed for ${productsToAnalyze.length} products`
+      };
+    } catch (error) {
+      console.error('❌ Failed to analyze sentiment:', error);
       
       if (error.message === 'AUTHENTICATION_REQUIRED') {
         window.location.href = '/user-authentication';
@@ -148,29 +244,47 @@ class ApiService {
     }
   }
 
-  // Analyze sentiment - REQUIRES AUTH (optional, can be made optional)
-  static async analyzeSentiment(productIds, products = []) {
+  // Complete analysis workflow (scrape + analyze) - FIXED VERSION
+  static async completeAnalysis(product) {
     try {
-      // Optional auth check - comment out if you want it public
-      // this.ensureAuthenticated();
+      this.ensureAuthenticated();
       
-      console.log(`Analyzing sentiment for ${productIds.length} products`);
+      console.log('🔄 Starting complete analysis for product:', product.title);
       
-      const response = await this.request('/analyze-sentiment', {
+      if (!product.link) {
+        throw new Error('Product link is required for analysis');
+      }
+
+      const response = await this.request('/complete-analysis', {
         method: 'POST',
         body: JSON.stringify({
-          product_ids: productIds,
-          products: products
+          product_id: product.id,
+          product_title: product.title,
+          product_url: product.link,
+          max_reviews: 50
         })
       });
 
+      console.log('✅ Complete analysis response:', {
+        success: response.success,
+        total_reviews: response.analysis?.total_reviews
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'Complete analysis failed');
+      }
+
       return {
         success: true,
-        results: response.results || [],
-        message: response.message || 'Sentiment analysis completed'
+        product: response.analysis,
+        stats: {
+          total_reviews: response.analysis?.total_reviews || 0,
+          analysis_summary: response.analysis?.sentiment_summary || {}
+        },
+        message: `Analysis completed with ${response.analysis?.total_reviews || 0} reviews`
       };
     } catch (error) {
-      console.error('Failed to analyze sentiment:', error);
+      console.error('❌ Complete analysis failed:', error);
       
       if (error.message === 'AUTHENTICATION_REQUIRED') {
         window.location.href = '/user-authentication';
@@ -178,7 +292,8 @@ class ApiService {
       
       return {
         success: false,
-        results: [],
+        product: null,
+        stats: null,
         error: error.message
       };
     }
@@ -298,6 +413,35 @@ class ApiService {
       };
     } catch (error) {
       console.error('Health check failed:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // NEW: Test scraping for debugging
+  static async testScraping(product) {
+    try {
+      console.log('🧪 Testing scraping for product:', product);
+      
+      const response = await this.request('/scrape-reviews', {
+        method: 'POST',
+        body: JSON.stringify({
+          product_ids: [product.id],
+          products: [product]
+        })
+      });
+
+      console.log('🧪 Test scraping result:', response);
+      
+      return {
+        success: response.success,
+        result: response.results?.[0] || response,
+        error: response.error
+      };
+    } catch (error) {
+      console.error('🧪 Test scraping failed:', error);
       return {
         success: false,
         error: error.message
