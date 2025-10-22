@@ -516,14 +516,59 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
       case 'sentiment_trend':
         return (
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={sentimentTrendData}>
+            <AreaChart 
+              data={sentimentTrendData}
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#0000001a" />
-              <XAxis dataKey="date" stroke="#5a5a59" fontSize={12} />
-              <YAxis stroke="#5a5a59" fontSize={12} />
-              <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #0000001a', borderRadius: '8px' }} />
-              <Area type="monotone" dataKey="positive" stackId="1" stroke="#6ee7b7" fill="#6ee7b7" fillOpacity={0.6} />
-              <Area type="monotone" dataKey="neutral" stackId="1" stroke="#d1d5db" fill="#d1d5db" fillOpacity={0.6} />
-              <Area type="monotone" dataKey="negative" stackId="1" stroke="#fca5a5" fill="#fca5a5" fillOpacity={0.6} />
+              <XAxis 
+                dataKey="date" 
+                stroke="#5a5a59" 
+                fontSize={12}
+                tickFormatter={(value) => value.replace('Review ', '')}
+              />
+              <YAxis 
+                stroke="#5a5a59" 
+                fontSize={12}
+                domain={[0, 100]}
+                tickFormatter={(value) => `${value}%`}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#ffffff', 
+                  border: '1px solid #0000001a', 
+                  borderRadius: '8px',
+                  padding: '8px'
+                }}
+                formatter={(value, name) => [`${value}%`, name.charAt(0).toUpperCase() + name.slice(1)]}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="positive" 
+                name="Positive"
+                stroke="#10b981" 
+                fill="#10b981" 
+                fillOpacity={0.4}
+                strokeWidth={2}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="neutral" 
+                name="Neutral"
+                stroke="#6b7280" 
+                fill="#6b7280" 
+                fillOpacity={0.4}
+                strokeWidth={2}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="negative" 
+                name="Negative"
+                stroke="#ef4444" 
+                fill="#ef4444" 
+                fillOpacity={0.4}
+                strokeWidth={2}
+              />
             </AreaChart>
           </ResponsiveContainer>
         );
@@ -644,32 +689,48 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
         ))}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-          <h3 className="text-lg font-semibold text-black mb-4 sm:mb-0">
-            {productInfo ? `${productInfo.title} - Sentiment Analysis` : 'Analytics Overview'}
-          </h3>
+      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-black mb-2">
+              {productInfo ? `${productInfo.title} - Sentiment Analysis` : 'Analytics Overview'}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {analysisStats?.total_reviews 
+                ? `Analysis based on ${analysisStats.total_reviews} reviews`
+                : 'No reviews analyzed yet'}
+            </p>
+          </div>
           
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-gray-50 mt-4 sm:mt-0 shrink-0">
             {[
-              { key: 'sentiment_trend', label: 'Trend' },
-              { key: 'sentiment_distribution', label: 'Distribution' }
+              { key: 'sentiment_trend', label: 'Trend Analysis', icon: 'TrendingUp' },
+              { key: 'sentiment_distribution', label: 'Distribution', icon: 'PieChart' }
             ].map((tab) => (
               <Button
                 key={tab.key}
                 variant={selectedMetric === tab.key ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setSelectedMetric(tab.key)}
-                className={`rounded-none border-0 ${selectedMetric === tab.key ? 'bg-red-500 hover:bg-red-600 text-white' : 'text-gray-700'}`}
+                className={`rounded-none border-0 flex items-center gap-2 ${
+                  selectedMetric === tab.key 
+                    ? 'bg-red-500 hover:bg-red-600 text-white' 
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
               >
+                <Icon name={tab.icon} size={16} />
                 {tab.label}
               </Button>
             ))}
           </div>
         </div>
 
-        <div className="w-full h-80 bg-gray-50 rounded-lg p-4">
-          {renderChart()}
+        <div className="bg-gray-50 rounded-lg p-6">
+          <div className="h-[400px]">
+            {renderChart()}
+          </div>
+        </div>
+      </div>
         </div>
       </div>
 
