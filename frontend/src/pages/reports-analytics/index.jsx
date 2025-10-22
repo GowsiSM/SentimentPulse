@@ -96,11 +96,58 @@ const ReportsAnalytics = () => {
 
   useEffect(() => {
     if (location.state) {
-      setAnalysisData(location.state.analysisData);
-      setProductInfo(location.state.productInfo);
+      let processedData = location.state.analysisData;
+      let processedProductInfo = location.state.productInfo;
+      
+      // Handle bulk analysis data
+      if (Array.isArray(location.state.analysisData)) {
+        // Combine stats from all products
+        const combinedStats = location.state.analysisData.reduce((acc, result) => {
+          const stats = result.sentiment_analysis?.summary || {};
+          return {
+            total_reviews: (acc.total_reviews || 0) + (stats.total_reviews || 0),
+            positive_reviews: (acc.positive_reviews || 0) + (stats.positive_reviews || 0),
+            negative_reviews: (acc.negative_reviews || 0) + (stats.negative_reviews || 0),
+            neutral_reviews: (acc.neutral_reviews || 0) + (stats.neutral_reviews || 0),
+            sentiment_scores: [...(acc.sentiment_scores || []), stats.sentiment_score || 0],
+          };
+        }, {});
+        
+        // Calculate aggregated percentages
+        const totalReviews = combinedStats.total_reviews || 0;
+        processedData = {
+          sentiment_analysis: {
+            summary: {
+              total_reviews: totalReviews,
+              positive_reviews: combinedStats.positive_reviews,
+              negative_reviews: combinedStats.negative_reviews,
+              neutral_reviews: combinedStats.neutral_reviews,
+              positive_percentage: totalReviews > 0 ? Math.round((combinedStats.positive_reviews / totalReviews) * 100) : 0,
+              negative_percentage: totalReviews > 0 ? Math.round((combinedStats.negative_reviews / totalReviews) * 100) : 0,
+              neutral_percentage: totalReviews > 0 ? Math.round((combinedStats.neutral_reviews / totalReviews) * 100) : 0,
+              sentiment_score: combinedStats.sentiment_scores.length > 0 
+                ? Math.round(combinedStats.sentiment_scores.reduce((a, b) => a + b, 0) / combinedStats.sentiment_scores.length)
+                : 0,
+            },
+            analyzed_reviews: location.state.analysisData.flatMap(result => 
+              result.sentiment_analysis?.analyzed_reviews || []
+            )
+          }
+        };
+        
+        // Create combined product info
+        processedProductInfo = {
+          title: `Bulk Analysis (${location.state.analysisData.length} Products)`,
+          total_products: location.state.analysisData.length,
+          mode: 'bulk'
+        };
+      }
+      
+      setAnalysisData(processedData);
+      setProductInfo(processedProductInfo);
       
       const processedStats = processAnalysisData(
-        location.state.analysisData || 
+        processedData || 
         location.state.analysisStats || 
         location.state
       );
@@ -158,12 +205,11 @@ const keyMetrics = analysisStats ? [
   ] : [];
 
   const sentimentTrendData = analysisData?.sentiment_analysis?.analyzed_reviews ? 
-    analysisData.sentiment_analysis.analyzed_reviews.slice(0, 5).map((review, index) => ({
+    analysisData.sentiment_analysis.analyzed_reviews.map((review, index) => ({
       date: `Review ${index + 1}`,
       positive: review.sentiment_analysis?.sentiment === 'positive' ? 100 : 0,
       negative: review.sentiment_analysis?.sentiment === 'negative' ? 100 : 0,
-      neutral: review.sentiment_analysis?.sentiment === 'neutral' ? 100 : 0,
-      confidence: review.sentiment_analysis?.confidence || 0
+      neutral: review.sentiment_analysis?.sentiment === 'neutral' ? 100 : 0
     })) : [];
 
   const sentimentDistribution = analysisStats ? [
@@ -503,18 +549,7 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
           </ResponsiveContainer>
         );
       
-      case 'review_confidence':
-        return (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={sentimentTrendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#0000001a" />
-              <XAxis dataKey="date" stroke="#5a5a59" fontSize={12} />
-              <YAxis stroke="#5a5a59" fontSize={12} />
-              <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #0000001a', borderRadius: '8px' }} />
-              <Bar dataKey="confidence" fill="#87ceeb" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        );
+
       
       default:
         return (
@@ -597,8 +632,7 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
           <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
             {[
               { key: 'sentiment_trend', label: 'Trend' },
-              { key: 'sentiment_distribution', label: 'Distribution' },
-              { key: 'review_confidence', label: 'Confidence' }
+              { key: 'sentiment_distribution', label: 'Distribution' }
             ].map((tab) => (
               <Button
                 key={tab.key}
