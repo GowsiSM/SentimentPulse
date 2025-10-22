@@ -693,13 +693,22 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
         </div>
       </div>
 
-      {analysisData?.reviews && analysisData.reviews.length > 0 && (
+      {analysisData?.sentiment_analysis?.analyzed_reviews && analysisData.sentiment_analysis.analyzed_reviews.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-black mb-4">
-            Customer Reviews ({analysisData.reviews.length} total)
-          </h3>
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            {analysisData.reviews.map((review, index) => (
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-black">
+              Customer Reviews ({analysisData.sentiment_analysis.analyzed_reviews.length} total)
+            </h3>
+            <span className="text-sm text-gray-500">Scroll to see more</span>
+          </div>
+          <div 
+            className="space-y-4 max-h-[600px] overflow-y-auto pr-2"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#E5E7EB transparent',
+            }}
+          >
+            {analysisData.sentiment_analysis.analyzed_reviews.map((review, index) => (
               <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
                 <div className="flex justify-between items-start mb-3">
                   <span className="text-sm font-medium text-gray-800">
@@ -717,22 +726,17 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
                       <span className="ml-1 text-yellow-600 font-semibold">{review.rating}/5</span>
                     </div>
                   )}
-                  {analysisData.sentiment_analysis?.analyzed_reviews?.[index] && (
-                    <div className="flex items-center space-x-2">
-                      <span className={`text-xs px-2 py-1 rounded font-medium ${
-                        analysisData.sentiment_analysis.analyzed_reviews[index].sentiment_analysis.sentiment === 'positive' 
-                          ? 'bg-green-100 text-green-800' 
-                          : analysisData.sentiment_analysis.analyzed_reviews[index].sentiment_analysis.sentiment === 'negative'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {analysisData.sentiment_analysis.analyzed_reviews[index].sentiment_analysis.sentiment.toUpperCase()}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {analysisData.sentiment_analysis.analyzed_reviews[index].sentiment_analysis.confidence}% confident
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-xs px-2 py-1 rounded font-medium ${
+                      review.sentiment_analysis?.sentiment === 'positive' 
+                        ? 'bg-green-100 text-green-800' 
+                        : review.sentiment_analysis?.sentiment === 'negative'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {review.sentiment_analysis?.sentiment.toUpperCase() || 'NEUTRAL'}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
