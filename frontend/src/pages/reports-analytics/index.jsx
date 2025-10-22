@@ -572,23 +572,13 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
     <div className="space-y-6">
       {productInfo && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center space-x-4">
-            {productInfo.imageUrl && (
-              <img 
-                src={productInfo.imageUrl} 
-                alt={productInfo.title}
-                className="w-16 h-16 object-cover rounded-lg"
-              />
-            )}
+          <div className="flex items-center justify-between mb-4">
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-black">{productInfo.title}</h3>
-              <p className="text-gray-600 text-sm">
-                {productInfo.price && `Price: ₹${productInfo.price}`} 
-                {productInfo.category && ` • Category: ${productInfo.category}`}
-              </p>
-              {analysisData?.analysis_timestamp && (
-                <p className="text-gray-500 text-xs mt-1">
-                  Analyzed: {new Date(analysisData.analysis_timestamp).toLocaleString()}
+              {!productInfo.mode && (
+                <p className="text-gray-600 text-sm">
+                  {productInfo.price && `Price: ₹${productInfo.price}`} 
+                  {productInfo.category && ` • Category: ${productInfo.category}`}
                 </p>
               )}
             </div>
@@ -602,6 +592,37 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
               <div className="text-sm text-gray-500">Overall Sentiment</div>
             </div>
           </div>
+          
+          {location.state?.analysisData && Array.isArray(location.state.analysisData) && (
+            <div className="mt-4 border-t border-gray-200 pt-4">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Analyzed Products:</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {location.state.analysisData.map((product, index) => (
+                  <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 rounded-full mr-2" style={{
+                        backgroundColor: product.sentiment_analysis?.summary.positive_percentage > 60 ? '#10b981' :
+                                       product.sentiment_analysis?.summary.negative_percentage > 40 ? '#ef4444' : '#6b7280'
+                      }}></div>
+                      <span className="text-sm text-gray-800 font-medium truncate">
+                        {(product.title || product.name || `Product ${index + 1}`).substring(0, 50)}
+                        {(product.title || product.name || '').length > 50 ? '...' : ''}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 pl-4">
+                      Reviews: {product.sentiment_analysis?.summary.total_reviews || 0}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {analysisData?.analysis_timestamp && (
+            <div className="mt-4 text-gray-500 text-xs">
+              Analyzed: {new Date(analysisData.analysis_timestamp).toLocaleString()}
+            </div>
+          )}
         </div>
       )}
 
