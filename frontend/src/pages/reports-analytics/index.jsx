@@ -731,8 +731,6 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
           </div>
         </div>
       </div>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
@@ -787,7 +785,7 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
             className="space-y-4 max-h-[600px] overflow-y-auto pr-2"
             style={{
               scrollbarWidth: 'thin',
-              scrollbarColor: '#E5E7EB transparent',
+              scrollbarColor: '#E5E7EB transparent'
             }}
           >
             {analysisData.sentiment_analysis.analyzed_reviews.map((review, index) => (
