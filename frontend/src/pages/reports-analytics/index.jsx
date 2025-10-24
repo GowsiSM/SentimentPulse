@@ -205,12 +205,16 @@ const keyMetrics = analysisStats ? [
   ] : [];
 
   const sentimentTrendData = analysisData?.sentiment_analysis?.analyzed_reviews ? 
-    analysisData.sentiment_analysis.analyzed_reviews.map((review, index) => ({
-      date: `Review ${index + 1}`,
-      positive: review.sentiment_analysis?.sentiment === 'positive' ? 100 : 0,
-      negative: review.sentiment_analysis?.sentiment === 'negative' ? 100 : 0,
-      neutral: review.sentiment_analysis?.sentiment === 'neutral' ? 100 : 0
-    })) : [];
+  analysisData.sentiment_analysis.analyzed_reviews.map((review, index) => {
+    const sentiment = review.sentiment_analysis?.sentiment || 'neutral';
+    return {
+      date: `R${index + 1}`,
+      positive: sentiment === 'positive' ? 1 : 0,
+      negative: sentiment === 'negative' ? 1 : 0,
+      neutral: sentiment === 'neutral' ? 1 : 0,
+      reviewText: review.text?.substring(0, 50) + '...'
+    };
+  }) : [];
 
   const sentimentDistribution = analysisStats ? [
     { name: 'Positive', value: analysisStats.positive_percentage || 0, color: '#6ee7b7' },
@@ -511,111 +515,226 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
     }, 1500);
   };
 
-  const renderChart = () => {
-    switch (selectedMetric) {
-      case 'sentiment_trend':
-        return (
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart 
-              data={sentimentTrendData}
-              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#0000001a" />
-              <XAxis 
-                dataKey="date" 
-                stroke="#5a5a59" 
-                fontSize={12}
-                tickFormatter={(value) => value.replace('Review ', '')}
-              />
-              <YAxis 
-                stroke="#5a5a59" 
-                fontSize={12}
-                domain={[0, 100]}
-                tickFormatter={(value) => `${value}%`}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#ffffff', 
-                  border: '1px solid #0000001a', 
-                  borderRadius: '8px',
-                  padding: '8px'
-                }}
-                formatter={(value, name) => [`${value}%`, name.charAt(0).toUpperCase() + name.slice(1)]}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="positive" 
-                name="Positive"
-                stroke="#10b981" 
-                fill="#10b981" 
-                fillOpacity={0.4}
-                strokeWidth={2}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="neutral" 
-                name="Neutral"
-                stroke="#6b7280" 
-                fill="#6b7280" 
-                fillOpacity={0.4}
-                strokeWidth={2}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="negative" 
-                name="Negative"
-                stroke="#ef4444" 
-                fill="#ef4444" 
-                fillOpacity={0.4}
-                strokeWidth={2}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        );
+  // const renderChart = () => {
+  //   switch (selectedMetric) {
+  //     case 'sentiment_trend':
+  //       return (
+  //         <ResponsiveContainer width="100%" height={300}>
+  //           <AreaChart 
+  //             data={sentimentTrendData}
+  //             margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+  //           >
+  //             <CartesianGrid strokeDasharray="3 3" stroke="#0000001a" />
+  //             <XAxis 
+  //               dataKey="date" 
+  //               stroke="#5a5a59" 
+  //               fontSize={12}
+  //               tickFormatter={(value) => value.replace('Review ', '')}
+  //             />
+  //             <YAxis 
+  //               stroke="#5a5a59" 
+  //               fontSize={12}
+  //               domain={[0, 100]}
+  //               tickFormatter={(value) => `${value}%`}
+  //             />
+  //             <Tooltip 
+  //               contentStyle={{ 
+  //                 backgroundColor: '#ffffff', 
+  //                 border: '1px solid #0000001a', 
+  //                 borderRadius: '8px',
+  //                 padding: '8px'
+  //               }}
+  //               formatter={(value, name) => [`${value}%`, name.charAt(0).toUpperCase() + name.slice(1)]}
+  //             />
+  //             <Area 
+  //               type="monotone" 
+  //               dataKey="positive" 
+  //               name="Positive"
+  //               stroke="#10b981" 
+  //               fill="#10b981" 
+  //               fillOpacity={0.4}
+  //               strokeWidth={2}
+  //             />
+  //             <Area 
+  //               type="monotone" 
+  //               dataKey="neutral" 
+  //               name="Neutral"
+  //               stroke="#6b7280" 
+  //               fill="#6b7280" 
+  //               fillOpacity={0.4}
+  //               strokeWidth={2}
+  //             />
+  //             <Area 
+  //               type="monotone" 
+  //               dataKey="negative" 
+  //               name="Negative"
+  //               stroke="#ef4444" 
+  //               fill="#ef4444" 
+  //               fillOpacity={0.4}
+  //               strokeWidth={2}
+  //             />
+  //           </AreaChart>
+  //         </ResponsiveContainer>
+  //       );
       
-      case 'sentiment_distribution':
-        return (
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={sentimentDistribution}
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                dataKey="value"
-                label={({ name, value }) => `${name}: ${value}%`}
-              >
-                {sentimentDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        );
+  //     case 'sentiment_distribution':
+  //       return (
+  //         <ResponsiveContainer width="100%" height={300}>
+  //           <PieChart>
+  //             <Pie
+  //               data={sentimentDistribution}
+  //               cx="50%"
+  //               cy="50%"
+  //               outerRadius={100}
+  //               dataKey="value"
+  //               label={({ name, value }) => `${name}: ${value}%`}
+  //             >
+  //               {sentimentDistribution.map((entry, index) => (
+  //                 <Cell key={`cell-${index}`} fill={entry.color} />
+  //               ))}
+  //             </Pie>
+  //             <Tooltip />
+  //           </PieChart>
+  //         </ResponsiveContainer>
+  //       );
       
 
       
-      default:
-        return (
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={sentimentTrendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#0000001a" />
-              <XAxis dataKey="date" stroke="#5a5a59" fontSize={12} />
-              <YAxis stroke="#5a5a59" fontSize={12} />
-              <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #0000001a', borderRadius: '8px' }} />
-              <Area type="monotone" dataKey="positive" stackId="1" stroke="#6ee7b7" fill="#6ee7b7" fillOpacity={0.6} />
-              <Area type="monotone" dataKey="neutral" stackId="1" stroke="#d1d5db" fill="#d1d5db" fillOpacity={0.6} />
-              <Area type="monotone" dataKey="negative" stackId="1" stroke="#fca5a5" fill="#fca5a5" fillOpacity={0.6} />
-            </AreaChart>
-          </ResponsiveContainer>
-        );
-    }
-  };
+  //     default:
+  //       return (
+  //         <ResponsiveContainer width="100%" height={300}>
+  //           <AreaChart data={sentimentTrendData}>
+  //             <CartesianGrid strokeDasharray="3 3" stroke="#0000001a" />
+  //             <XAxis dataKey="date" stroke="#5a5a59" fontSize={12} />
+  //             <YAxis stroke="#5a5a59" fontSize={12} />
+  //             <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #0000001a', borderRadius: '8px' }} />
+  //             <Area type="monotone" dataKey="positive" stackId="1" stroke="#6ee7b7" fill="#6ee7b7" fillOpacity={0.6} />
+  //             <Area type="monotone" dataKey="neutral" stackId="1" stroke="#d1d5db" fill="#d1d5db" fillOpacity={0.6} />
+  //             <Area type="monotone" dataKey="negative" stackId="1" stroke="#fca5a5" fill="#fca5a5" fillOpacity={0.6} />
+  //           </AreaChart>
+  //         </ResponsiveContainer>
+  //       );
+  //   }
+  // };
+
+  const renderChart = () => {
+  switch (selectedMetric) {
+    case 'sentiment_trend':
+      return (
+        <ResponsiveContainer width="100%" height={400}>
+          <AreaChart 
+            data={sentimentTrendData}
+            margin={{ top: 10, right: 30, left: 0, bottom: 20 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis 
+              dataKey="date" 
+              stroke="#6b7280" 
+              fontSize={12}
+              angle={-45}
+              textAnchor="end"
+              height={60}
+            />
+            <YAxis 
+              stroke="#6b7280" 
+              fontSize={12}
+              label={{ value: 'Sentiment', angle: -90, position: 'insideLeft' }}
+            />
+            <Tooltip 
+              contentStyle={{ 
+                backgroundColor: '#ffffff', 
+                border: '1px solid #e5e7eb', 
+                borderRadius: '8px',
+                padding: '12px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+              }}
+              formatter={(value, name) => {
+                const labels = { positive: 'Positive', negative: 'Negative', neutral: 'Neutral' };
+                return [value === 1 ? '✓' : '', labels[name]];
+              }}
+            />
+            <Area 
+              type="stepAfter" 
+              dataKey="positive" 
+              stackId="1" 
+              stroke="#10b981" 
+              fill="#10b981" 
+              fillOpacity={0.7}
+            />
+            <Area 
+              type="stepAfter" 
+              dataKey="neutral" 
+              stackId="1" 
+              stroke="#6b7280" 
+              fill="#6b7280" 
+              fillOpacity={0.7}
+            />
+            <Area 
+              type="stepAfter" 
+              dataKey="negative" 
+              stackId="1" 
+              stroke="#ef4444" 
+              fill="#ef4444" 
+              fillOpacity={0.7}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      );
+    
+    case 'sentiment_distribution':
+      return (
+        <ResponsiveContainer width="100%" height={400}>
+          <PieChart>
+            <Pie
+              data={sentimentDistribution}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              outerRadius={120}
+              dataKey="value"
+              label={({ name, value, cx, cy, midAngle, innerRadius, outerRadius }) => {
+                const RADIAN = Math.PI / 180;
+                const radius = outerRadius + 30;
+                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                return (
+                  <text 
+                    x={x} 
+                    y={y} 
+                    fill="#374151" 
+                    textAnchor={x > cx ? 'start' : 'end'} 
+                    dominantBaseline="central"
+                    className="font-semibold"
+                  >
+                    {`${name}: ${value}%`}
+                  </text>
+                );
+              }}
+            >
+              {sentimentDistribution.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip 
+              contentStyle={{ 
+                backgroundColor: '#ffffff', 
+                border: '1px solid #e5e7eb', 
+                borderRadius: '8px',
+                padding: '12px'
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      );
+    
+    default:
+      return null;
+  }
+};
 
   const DashboardView = () => (
     <div className="space-y-6">
-      {productInfo && (
+      {/* {productInfo && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="flex-1">
@@ -669,7 +788,126 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
             </div>
           )}
         </div>
-      )}
+      )} */}
+      {productInfo && (
+  <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+    <div className="flex items-start justify-between mb-4">
+      <div className="flex-1">
+        <h3 className="text-lg font-semibold text-black mb-2">{productInfo.title}</h3>
+        {!productInfo.mode && (
+          <div className="space-y-1 text-sm text-gray-600">
+            {productInfo.price && <p>Price: ₹{productInfo.price}</p>}
+            {productInfo.category && <p>Category: {productInfo.category}</p>}
+            {productInfo.link && (
+              <p className="flex items-center gap-2">
+                <a 
+                  href={productInfo.link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 hover:underline truncate max-w-md"
+                >
+                  {productInfo.link}
+                </a>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="text-right ml-4">
+        <div className={`text-xl font-bold px-4 py-2 rounded-lg ${
+          analysisStats?.overall_sentiment === 'positive' ? 'bg-green-100 text-green-700' :
+          analysisStats?.overall_sentiment === 'negative' ? 'bg-red-100 text-red-700' : 
+          'bg-gray-100 text-gray-700'
+        }`}>
+          {analysisStats?.overall_sentiment?.toUpperCase() || 'NEUTRAL'}
+        </div>
+        <div className="text-xs text-gray-500 mt-1">Overall Sentiment</div>
+      </div>
+    </div>
+    
+    {location.state?.analysisData && Array.isArray(location.state.analysisData) && (
+      <div className="mt-6 border-t border-gray-200 pt-4">
+        <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+          Analyzed Products ({location.state.analysisData.length})
+        </h4>
+        <div className="grid grid-cols-1 gap-4">
+          {location.state.analysisData.map((product, index) => {
+            const sentiment = product.sentiment_analysis?.summary;
+            const isPositive = sentiment?.positive_percentage > 60;
+            const isNegative = sentiment?.negative_percentage > 40;
+            
+            return (
+              <div key={index} className="bg-gradient-to-r from-gray-50 to-white p-4 rounded-lg border border-gray-200 hover:border-gray-300 transition-all hover:shadow-md">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{
+                        backgroundColor: isPositive ? '#10b981' : isNegative ? '#ef4444' : '#6b7280'
+                      }}></div>
+                      <h5 className="text-sm font-semibold text-gray-900 truncate">
+                        {product.title || product.name || `Product ${index + 1}`}
+                      </h5>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600 mb-2">
+                      {product.price && (
+                        <span className="flex items-center gap-1">
+                          ₹{product.price}
+                        </span>
+                      )}
+                      {product.category && (
+                        <span className="flex items-center gap-1">
+                          {product.category}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        {sentiment?.total_reviews || 0} reviews
+                      </span>
+                      <span className="flex items-center gap-1">
+                        {sentiment?.sentiment_score || 0}% score
+                      </span>
+                    </div>
+                    
+                    {product.link && (
+                      <a 
+                        href={product.link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 truncate"
+                      >
+                        🔗 View Product
+                      </a>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      isPositive ? 'bg-green-100 text-green-700' :
+                      isNegative ? 'bg-red-100 text-red-700' : 
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {isPositive ? '😊 Positive' : isNegative ? '😞 Negative' : '😐 Neutral'}
+                    </div>
+                    <div className="flex gap-2 text-xs">
+                      <span className="text-green-600 font-medium">👍 {sentiment?.positive_percentage || 0}%</span>
+                      <span className="text-red-600 font-medium">👎 {sentiment?.negative_percentage || 0}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
+    {analysisData?.analysis_timestamp && (
+      <div className="mt-4 text-xs text-gray-500 flex items-center gap-2">
+        Analyzed: {new Date(analysisData.analysis_timestamp).toLocaleString()}
+      </div>
+    )}
+  </div>
+)}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {keyMetrics.map((metric, index) => (
@@ -689,7 +927,7 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
         ))}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm space-y-6">
+      {/* <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-black mb-2">
@@ -730,8 +968,45 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
             {renderChart()}
           </div>
         </div>
-      </div>
+      </div> */}
+<div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div>
+      <h3 className="text-lg font-semibold text-black mb-1">Sentiment Analysis</h3>
+      <p className="text-sm text-gray-500">
+        {analysisStats?.total_reviews 
+          ? `Visualizing ${analysisStats.total_reviews} customer reviews`
+          : 'No reviews analyzed yet'}
+      </p>
+    </div>
+    
+    <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-gray-50 mt-4 sm:mt-0">
+      {[
+        { key: 'sentiment_trend', label: 'Timeline', icon: 'TrendingUp' },
+        { key: 'sentiment_distribution', label: 'Distribution', icon: 'PieChart' }
+      ].map((tab) => (
+        <Button
+          key={tab.key}
+          variant={selectedMetric === tab.key ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setSelectedMetric(tab.key)}
+          className={`rounded-none border-0 flex items-center gap-2 px-4 py-2 ${
+            selectedMetric === tab.key 
+              ? 'bg-red-500 hover:bg-red-600 text-white shadow-sm' 
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <Icon name={tab.icon} size={16} />
+          <span className="font-medium">{tab.label}</span>
+        </Button>
+      ))}
+    </div>
+  </div>
 
+  <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-6 border border-gray-100">
+    {renderChart()}
+  </div>
+</div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-black mb-4">Analysis Insights</h3>
