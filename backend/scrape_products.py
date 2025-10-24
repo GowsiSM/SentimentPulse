@@ -130,7 +130,7 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
             return []
         
         reviews = []
-        for i, item in enumerate(review_items[:max_reviews], 1):
+        for i, item in enumerate(review_items, 1):  # Removed max_reviews limit
             try:
                 # Extract review text - IMPROVED SELECTORS FOR SNAPDEAL
                 review_text = ""

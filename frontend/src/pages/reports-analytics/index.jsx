@@ -782,7 +782,7 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
             <span className="text-sm text-gray-500">Scroll to see more</span>
           </div>
           <div 
-            className="space-y-4 max-h-[600px] overflow-y-auto pr-2"
+            className="space-y-4 max-h-[400px] overflow-y-auto pr-2"
             style={{
               scrollbarWidth: 'thin',
               scrollbarColor: '#E5E7EB transparent'
@@ -800,12 +800,7 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
                 </div>
                 <p className="text-sm text-gray-700 mb-2 leading-relaxed">{review.text}</p>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200">
-                  {review.rating && (
-                    <div className="flex items-center text-xs text-gray-600">
-                      <span className="font-medium">Rating:</span>
-                      <span className="ml-1 text-yellow-600 font-semibold">{review.rating}/5</span>
-                    </div>
-                  )}
+                  
                   <div className="flex items-center space-x-2">
                     <span className={`text-xs px-2 py-1 rounded font-medium ${
                       review.sentiment_analysis?.sentiment === 'positive' 
