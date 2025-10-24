@@ -15,3 +15,12 @@ git rm -r --cached venv
 # Python virtual environment
 env_snapdeal/
 venv/
+
+# Ignore environment files
+.env
+frontend/.env
+backend/.env
+
+# Optional — if you ever have env variants
+*.env
+*.env.local
