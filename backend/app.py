@@ -910,9 +910,8 @@ def api_scrape_reviews():
                 try:
                     # Scrape reviews using the shared driver
                     reviews = scrape_product_reviews_selenium(
-                        product_url, 
-                        max_reviews=50, 
-                        driver=driver
+                        product_url,
+                        driver=driver  # Removed max_reviews limit
                     )
                     
                     if reviews:
