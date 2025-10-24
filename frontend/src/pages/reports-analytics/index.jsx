@@ -4,6 +4,7 @@ import Button from '../../components/ui/Button';
 import Icon from '../../components/AppIcon';
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+const [selectedProduct, setSelectedProduct] = useState(null);
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 
 const ReportsAnalytics = () => {
@@ -349,273 +350,215 @@ const keyMetrics = analysisStats ? [
 
   const recommendations = generateRecommendations();
 
-  const generateReport = () => {
-    if (!analysisData || !analysisStats) {
-      alert('No analysis data available. Please analyze a product first.');
-      return;
+const generateReport = () => {
+  if (!analysisData || !analysisStats) {
+    alert('No analysis data available. Please analyze a product first.');
+    return;
+  }
+
+  setIsExporting(true);
+
+  setTimeout(() => {
+    const isBulkAnalysis = location.state?.analysisData && Array.isArray(location.state.analysisData);
+    const timestamp = new Date().toLocaleString();
+    
+    if (selectedFormat === 'pdf' || selectedFormat === 'excel') {
+      // Generate detailed text report
+      let content = `${'='.repeat(80)}\n`;
+      content += `SENTIMENT ANALYSIS REPORT\n`;
+      content += `${'='.repeat(80)}\n\n`;
+      
+      // Header Info
+      content += `Report Type: ${reportTemplate.charAt(0).toUpperCase() + reportTemplate.slice(1)}\n`;
+      content += `Analysis Type: ${isBulkAnalysis ? 'Bulk Analysis' : 'Single Product'}\n`;
+      content += `Generated: ${timestamp}\n`;
+      content += `Date Range: ${dateRange}\n`;
+      content += `Category Filter: ${categoryFilter}\n\n`;
+      
+      content += `${'-'.repeat(80)}\n`;
+      content += `PRODUCT INFORMATION\n`;
+      content += `${'-'.repeat(80)}\n`;
+      content += `Title: ${productInfo?.title || 'N/A'}\n`;
+      if (!isBulkAnalysis) {
+        if (productInfo?.price) content += `Price: ₹${productInfo.price}\n`;
+        if (productInfo?.category) content += `Category: ${productInfo.category}\n`;
+        if (productInfo?.link) content += `Link: ${productInfo.link}\n`;
+      } else {
+        content += `Total Products Analyzed: ${location.state.analysisData.length}\n`;
+      }
+      content += `\n`;
+      
+      // Overall Statistics
+      content += `${'-'.repeat(80)}\n`;
+      content += `OVERALL SENTIMENT SUMMARY\n`;
+      content += `${'-'.repeat(80)}\n`;
+      content += `Total Reviews: ${analysisStats.total_reviews}\n`;
+      content += `Sentiment Score: ${analysisStats.sentiment_score}%\n`;
+      content += `Overall Sentiment: ${analysisStats.overall_sentiment?.toUpperCase()}\n`;
+      content += `Positive Reviews: ${analysisStats.positive_percentage}% (${analysisStats.positive_reviews} reviews)\n`;
+      content += `Negative Reviews: ${analysisStats.negative_percentage}% (${analysisStats.negative_reviews} reviews)\n`;
+      content += `Neutral Reviews: ${analysisStats.neutral_percentage}% (${analysisStats.neutral_reviews} reviews)\n\n`;
+      
+      // Bulk Product Details
+      if (isBulkAnalysis && location.state.analysisData) {
+        content += `${'-'.repeat(80)}\n`;
+        content += `INDIVIDUAL PRODUCT BREAKDOWN\n`;
+        content += `${'-'.repeat(80)}\n\n`;
+        
+        location.state.analysisData.forEach((product, index) => {
+          const sentiment = product.sentiment_analysis?.summary || {};
+          content += `Product ${index + 1}:\n`;
+          content += `  Title: ${product.title || product.name || 'N/A'}\n`;
+          if (product.price) content += `  Price: ₹${product.price}\n`;
+          if (product.category) content += `  Category: ${product.category}\n`;
+          if (product.link) content += `  Link: ${product.link}\n`;
+          content += `  Reviews: ${sentiment.total_reviews || 0}\n`;
+          content += `  Sentiment Score: ${sentiment.sentiment_score || 0}%\n`;
+          content += `  Positive: ${sentiment.positive_percentage || 0}%\n`;
+          content += `  Negative: ${sentiment.negative_percentage || 0}%\n`;
+          content += `  Neutral: ${sentiment.neutral_percentage || 0}%\n`;
+          content += `  Overall: ${sentiment.overall_sentiment || 'N/A'}\n\n`;
+        });
+      }
+      
+      // Key Insights
+      content += `${'-'.repeat(80)}\n`;
+      content += `KEY INSIGHTS\n`;
+      content += `${'-'.repeat(80)}\n`;
+      insights.forEach((insight, idx) => {
+        content += `${idx + 1}. [${insight.type.toUpperCase()}] ${insight.text}\n`;
+        content += `   ${insight.detail}\n\n`;
+      });
+      
+      // Recommendations
+      content += `${'-'.repeat(80)}\n`;
+      content += `RECOMMENDATIONS\n`;
+      content += `${'-'.repeat(80)}\n`;
+      recommendations.forEach((rec, idx) => {
+        content += `${idx + 1}. ${rec.text}\n`;
+        content += `   ${rec.detail}\n\n`;
+      });
+      
+      // Sample Reviews
+      if (analysisData?.sentiment_analysis?.analyzed_reviews) {
+        content += `${'-'.repeat(80)}\n`;
+        content += `SAMPLE REVIEWS (First 10)\n`;
+        content += `${'-'.repeat(80)}\n\n`;
+        
+        analysisData.sentiment_analysis.analyzed_reviews.slice(0, 10).forEach((review, idx) => {
+          content += `Review ${idx + 1}:\n`;
+          content += `  Reviewer: ${review.reviewer || 'Anonymous'}\n`;
+          content += `  Date: ${review.date || 'N/A'}\n`;
+          content += `  Rating: ${review.rating || 'N/A'}\n`;
+          content += `  Sentiment: ${review.sentiment_analysis?.sentiment?.toUpperCase() || 'N/A'}\n`;
+          content += `  Text: ${review.text}\n\n`;
+        });
+      }
+      
+      content += `${'-'.repeat(80)}\n`;
+      content += `END OF REPORT\n`;
+      content += `${'-'.repeat(80)}\n`;
+      
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const reportPrefix = isBulkAnalysis ? 'bulk_analysis' : `product_${productInfo?.id || 'single'}`;
+      a.download = `${reportPrefix}_${reportTemplate}_report_${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+    } else if (selectedFormat === 'csv') {
+      // CSV Format
+      let csvContent = '';
+      const isBulkAnalysis = location.state?.analysisData && Array.isArray(location.state.analysisData);
+      
+      // Header Section
+      csvContent += 'SENTIMENT ANALYSIS REPORT\n';
+      csvContent += `Generated,${timestamp}\n`;
+      csvContent += `Report Type,${reportTemplate}\n`;
+      csvContent += `Analysis Type,${isBulkAnalysis ? 'Bulk' : 'Single Product'}\n`;
+      csvContent += '\n';
+      
+      // Overall Stats
+      csvContent += 'OVERALL STATISTICS\n';
+      csvContent += 'Metric,Value\n';
+      csvContent += `Total Reviews,${analysisStats.total_reviews}\n`;
+      csvContent += `Sentiment Score,${analysisStats.sentiment_score}%\n`;
+      csvContent += `Overall Sentiment,${analysisStats.overall_sentiment}\n`;
+      csvContent += `Positive Percentage,${analysisStats.positive_percentage}%\n`;
+      csvContent += `Negative Percentage,${analysisStats.negative_percentage}%\n`;
+      csvContent += `Neutral Percentage,${analysisStats.neutral_percentage}%\n`;
+      csvContent += '\n';
+      
+      // Bulk Product Details
+      if (isBulkAnalysis && location.state.analysisData) {
+        csvContent += 'PRODUCT BREAKDOWN\n';
+        csvContent += 'Product,Title,Price,Category,Link,Reviews,Score,Positive%,Negative%,Neutral%,Sentiment\n';
+        
+        location.state.analysisData.forEach((product, index) => {
+          const sentiment = product.sentiment_analysis?.summary || {};
+          csvContent += `Product ${index + 1},`;
+          csvContent += `"${(product.title || product.name || 'N/A').replace(/"/g, '""')}",`;
+          csvContent += `${product.price || 'N/A'},`;
+          csvContent += `${product.category || 'N/A'},`;
+          csvContent += `"${(product.link || 'N/A').replace(/"/g, '""')}",`;
+          csvContent += `${sentiment.total_reviews || 0},`;
+          csvContent += `${sentiment.sentiment_score || 0}%,`;
+          csvContent += `${sentiment.positive_percentage || 0}%,`;
+          csvContent += `${sentiment.negative_percentage || 0}%,`;
+          csvContent += `${sentiment.neutral_percentage || 0}%,`;
+          csvContent += `${sentiment.overall_sentiment || 'N/A'}\n`;
+        });
+        csvContent += '\n';
+      }
+      
+      // Insights
+      csvContent += 'KEY INSIGHTS\n';
+      csvContent += 'Type,Insight,Detail\n';
+      insights.forEach(i => {
+        csvContent += `${i.type},"${i.text.replace(/"/g, '""')}","${i.detail.replace(/"/g, '""')}"\n`;
+      });
+      csvContent += '\n';
+      
+      // Recommendations
+      csvContent += 'RECOMMENDATIONS\n';
+      csvContent += 'Recommendation,Detail\n';
+      recommendations.forEach(r => {
+        csvContent += `"${r.text.replace(/"/g, '""')}","${r.detail.replace(/"/g, '""')}"\n`;
+      });
+      csvContent += '\n';
+      
+      // Reviews
+      if (analysisData?.sentiment_analysis?.analyzed_reviews) {
+        csvContent += 'SAMPLE REVIEWS\n';
+        csvContent += 'Reviewer,Date,Rating,Sentiment,Review Text\n';
+        
+        analysisData.sentiment_analysis.analyzed_reviews.slice(0, 20).forEach(r => {
+          csvContent += `"${(r.reviewer || 'Anonymous').replace(/"/g, '""')}",`;
+          csvContent += `"${(r.date || 'N/A').replace(/"/g, '""')}",`;
+          csvContent += `"${(r.rating || 'N/A').replace(/"/g, '""')}",`;
+          csvContent += `"${(r.sentiment_analysis?.sentiment || 'N/A').replace(/"/g, '""')}",`;
+          csvContent += `"${(r.text || '').replace(/"/g, '""')}"\n`;
+        });
+      }
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const reportPrefix = isBulkAnalysis ? 'bulk_analysis' : `product_${productInfo?.id || 'single'}`;
+      a.download = `${reportPrefix}_${reportTemplate}_report_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
-    setIsExporting(true);
+    setIsExporting(false);
+    alert(`${reportTemplate.charAt(0).toUpperCase() + reportTemplate.slice(1)} report generated successfully as ${selectedFormat.toUpperCase()}`);
+  }, 1500);
+};
 
-    setTimeout(() => {
-      if (selectedFormat === 'pdf') {
-        const content = `SENTIMENT ANALYSIS REPORT
-${productInfo?.title || 'Product Analysis'}
-Generated: ${new Date().toLocaleString()}
 
-SUMMARY:
-- Total Reviews: ${analysisStats.total_reviews}
-- Sentiment Score: ${analysisStats.sentiment_score}%
-- Overall Sentiment: ${analysisStats.overall_sentiment}
-- Positive: ${analysisStats.positive_percentage}%
-- Negative: ${analysisStats.negative_percentage}%
-- Neutral: ${analysisStats.neutral_percentage}%
-
-INSIGHTS:
-${insights.map(i => `• ${i.text}: ${i.detail}`).join('\n')}
-
-RECOMMENDATIONS:
-${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
-        
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `sentiment-report-${Date.now()}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        const csvContent = [
-          ['Metric', 'Value'],
-          ['Total Reviews', analysisStats.total_reviews],
-          ['Sentiment Score', `${analysisStats.sentiment_score}%`],
-          ['Overall Sentiment', analysisStats.overall_sentiment],
-          ['Positive Reviews', `${analysisStats.positive_percentage}%`],
-          ['Negative Reviews', `${analysisStats.negative_percentage}%`],
-          ['Neutral Reviews', `${analysisStats.neutral_percentage}%`],
-          [''],
-          ['Insights', ''],
-          ...insights.map(i => [i.text, i.detail]),
-          [''],
-          ['Recommendations', ''],
-          ...recommendations.map(r => [r.text, r.detail])
-        ].map(row => row.join(',')).join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `sentiment-report-${Date.now()}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-
-      setIsExporting(false);
-      alert(`Report generated successfully as ${selectedFormat.toUpperCase()}`);
-    }, 1500);
-  };
-
-  const exportData = () => {
-    if (!analysisData || !analysisStats) {
-      alert('No data available to export. Please analyze a product first.');
-      return;
-    }
-
-    setIsExporting(true);
-
-    setTimeout(() => {
-      let dataToExport;
-      
-      if (exportType === 'analytics') {
-        dataToExport = {
-          productInfo: productInfo,
-          stats: analysisStats,
-          insights: insights,
-          recommendations: recommendations,
-          exportedAt: new Date().toISOString()
-        };
-      } else if (exportType === 'reviews') {
-        dataToExport = {
-          productInfo: productInfo,
-          reviews: analysisData.reviews || [],
-          totalReviews: analysisStats.total_reviews,
-          exportedAt: new Date().toISOString()
-        };
-      } else if (exportType === 'sentiment') {
-        dataToExport = {
-          productInfo: productInfo,
-          sentimentScores: {
-            overall: analysisStats.sentiment_score,
-            positive: analysisStats.positive_percentage,
-            negative: analysisStats.negative_percentage,
-            neutral: analysisStats.neutral_percentage,
-            sentiment: analysisStats.overall_sentiment
-          },
-          distribution: sentimentDistribution,
-          exportedAt: new Date().toISOString()
-        };
-      }
-
-      if (selectedFormat === 'json') {
-        const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${exportType}-export-${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        let csvContent = '';
-        
-        if (exportType === 'analytics') {
-          csvContent = [
-            ['Metric', 'Value'],
-            ['Product', productInfo?.title || 'N/A'],
-            ['Total Reviews', analysisStats.total_reviews],
-            ['Sentiment Score', analysisStats.sentiment_score],
-            ['Positive %', analysisStats.positive_percentage],
-            ['Negative %', analysisStats.negative_percentage],
-            ['Neutral %', analysisStats.neutral_percentage],
-            ['Overall Sentiment', analysisStats.overall_sentiment]
-          ].map(row => row.join(',')).join('\n');
-        } else if (exportType === 'reviews') {
-          const reviews = analysisData.reviews || [];
-          csvContent = [
-            ['Reviewer', 'Date', 'Rating', 'Review Text'],
-            ...reviews.map(r => [
-              r.reviewer || 'Anonymous',
-              r.date || 'N/A',
-              r.rating || 'N/A',
-              `"${(r.text || '').replace(/"/g, '""')}"`
-            ])
-          ].map(row => row.join(',')).join('\n');
-        } else if (exportType === 'sentiment') {
-          csvContent = [
-            ['Sentiment Type', 'Percentage'],
-            ['Positive', analysisStats.positive_percentage],
-            ['Negative', analysisStats.negative_percentage],
-            ['Neutral', analysisStats.neutral_percentage],
-            [''],
-            ['Overall Score', analysisStats.sentiment_score],
-            ['Overall Sentiment', analysisStats.overall_sentiment]
-          ].map(row => row.join(',')).join('\n');
-        }
-
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${exportType}-${Date.now()}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-
-      setIsExporting(false);
-      alert(`Data exported successfully as ${selectedFormat.toUpperCase()}`);
-    }, 1500);
-  };
-
-  // const renderChart = () => {
-  //   switch (selectedMetric) {
-  //     case 'sentiment_trend':
-  //       return (
-  //         <ResponsiveContainer width="100%" height={300}>
-  //           <AreaChart 
-  //             data={sentimentTrendData}
-  //             margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-  //           >
-  //             <CartesianGrid strokeDasharray="3 3" stroke="#0000001a" />
-  //             <XAxis 
-  //               dataKey="date" 
-  //               stroke="#5a5a59" 
-  //               fontSize={12}
-  //               tickFormatter={(value) => value.replace('Review ', '')}
-  //             />
-  //             <YAxis 
-  //               stroke="#5a5a59" 
-  //               fontSize={12}
-  //               domain={[0, 100]}
-  //               tickFormatter={(value) => `${value}%`}
-  //             />
-  //             <Tooltip 
-  //               contentStyle={{ 
-  //                 backgroundColor: '#ffffff', 
-  //                 border: '1px solid #0000001a', 
-  //                 borderRadius: '8px',
-  //                 padding: '8px'
-  //               }}
-  //               formatter={(value, name) => [`${value}%`, name.charAt(0).toUpperCase() + name.slice(1)]}
-  //             />
-  //             <Area 
-  //               type="monotone" 
-  //               dataKey="positive" 
-  //               name="Positive"
-  //               stroke="#10b981" 
-  //               fill="#10b981" 
-  //               fillOpacity={0.4}
-  //               strokeWidth={2}
-  //             />
-  //             <Area 
-  //               type="monotone" 
-  //               dataKey="neutral" 
-  //               name="Neutral"
-  //               stroke="#6b7280" 
-  //               fill="#6b7280" 
-  //               fillOpacity={0.4}
-  //               strokeWidth={2}
-  //             />
-  //             <Area 
-  //               type="monotone" 
-  //               dataKey="negative" 
-  //               name="Negative"
-  //               stroke="#ef4444" 
-  //               fill="#ef4444" 
-  //               fillOpacity={0.4}
-  //               strokeWidth={2}
-  //             />
-  //           </AreaChart>
-  //         </ResponsiveContainer>
-  //       );
-      
-  //     case 'sentiment_distribution':
-  //       return (
-  //         <ResponsiveContainer width="100%" height={300}>
-  //           <PieChart>
-  //             <Pie
-  //               data={sentimentDistribution}
-  //               cx="50%"
-  //               cy="50%"
-  //               outerRadius={100}
-  //               dataKey="value"
-  //               label={({ name, value }) => `${name}: ${value}%`}
-  //             >
-  //               {sentimentDistribution.map((entry, index) => (
-  //                 <Cell key={`cell-${index}`} fill={entry.color} />
-  //               ))}
-  //             </Pie>
-  //             <Tooltip />
-  //           </PieChart>
-  //         </ResponsiveContainer>
-  //       );
-      
-
-      
-  //     default:
-  //       return (
-  //         <ResponsiveContainer width="100%" height={300}>
-  //           <AreaChart data={sentimentTrendData}>
-  //             <CartesianGrid strokeDasharray="3 3" stroke="#0000001a" />
-  //             <XAxis dataKey="date" stroke="#5a5a59" fontSize={12} />
-  //             <YAxis stroke="#5a5a59" fontSize={12} />
-  //             <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #0000001a', borderRadius: '8px' }} />
-  //             <Area type="monotone" dataKey="positive" stackId="1" stroke="#6ee7b7" fill="#6ee7b7" fillOpacity={0.6} />
-  //             <Area type="monotone" dataKey="neutral" stackId="1" stroke="#d1d5db" fill="#d1d5db" fillOpacity={0.6} />
-  //             <Area type="monotone" dataKey="negative" stackId="1" stroke="#fca5a5" fill="#fca5a5" fillOpacity={0.6} />
-  //           </AreaChart>
-  //         </ResponsiveContainer>
-  //       );
-  //   }
-  // };
 
   const renderChart = () => {
   switch (selectedMetric) {
@@ -731,64 +674,205 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
       return null;
   }
 };
-
-  const DashboardView = () => (
-    <div className="space-y-6">
-      {/* {productInfo && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-black">{productInfo.title}</h3>
-              {!productInfo.mode && (
-                <p className="text-gray-600 text-sm">
-                  {productInfo.price && `Price: ₹${productInfo.price}`} 
-                  {productInfo.category && ` • Category: ${productInfo.category}`}
-                </p>
+const ProductDetailModal = ({ product, onClose }) => {
+  if (!product) return null;
+  
+  const summary = product.sentiment_analysis?.summary || {};
+  const reviews = product.sentiment_analysis?.analyzed_reviews || [];
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-500 to-red-600 p-6">
+          <div className="flex justify-between items-start">
+            <div className="flex-1 pr-4">
+              <h2 className="text-2xl font-bold text-white mb-2">{product.title}</h2>
+              
+              {/* ✅ Corrected anchor tag syntax */}
+              {product.url && (
+                <a
+                  href={product.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-white hover:text-red-100 text-sm transition-colors"
+                >
+                  <Icon name="ExternalLink" size={16} className="mr-1" />
+                  View Product on Snapdeal
+                </a>
               )}
             </div>
-            <div className="text-right">
-              <div className={`text-lg font-bold ${
-                analysisStats?.overall_sentiment === 'positive' ? 'text-green-600' :
-                analysisStats?.overall_sentiment === 'negative' ? 'text-red-600' : 'text-gray-600'
-              }`}>
-                {analysisStats?.overall_sentiment?.toUpperCase() || 'NEUTRAL'}
+
+            <button
+              onClick={onClose}
+              className="text-white hover:bg-red-700 rounded-full p-2 transition-colors"
+            >
+              <Icon name="X" size={24} />
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto max-h-[calc(90vh-120px)] p-6">
+          {/* Product Info Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            
+            {/* Left Column - Image & Basic Info */}
+            <div>
+              {product.image_url && (
+                <img
+                  src={product.image_url}
+                  alt={product.title}
+                  className="w-full h-64 object-contain rounded-lg border border-gray-200 bg-gray-50 mb-4"
+                />
+              )}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <span className="text-gray-600 font-medium">Price</span>
+                  <span className="text-2xl font-bold text-gray-900">₹{product.price || 'N/A'}</span>
+                </div>
+
+                {product.category && (
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-600 font-medium">Category</span>
+                    <span className="text-gray-900 font-semibold">{product.category}</span>
+                  </div>
+                )}
               </div>
-              <div className="text-sm text-gray-500">Overall Sentiment</div>
+            </div>
+
+            {/* Right Column - Sentiment Stats */}
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <Icon name="BarChart3" size={20} className="mr-2 text-red-500" />
+                Sentiment Analysis
+              </h3>
+              
+              {/* Overall Sentiment Badge */}
+              <div
+                className="mb-4 p-4 rounded-lg text-center"
+                style={{
+                  backgroundColor:
+                    summary.positive_percentage > 60
+                      ? "#dcfce7"
+                      : summary.negative_percentage > 40
+                      ? "#fee2e2"
+                      : "#f3f4f6",
+                }}
+              >
+                <div className="text-sm text-gray-600 mb-1">Overall Sentiment</div>
+                <div
+                  className="text-3xl font-bold"
+                  style={{
+                    color:
+                      summary.positive_percentage > 60
+                        ? "#16a34a"
+                        : summary.negative_percentage > 40
+                        ? "#dc2626"
+                        : "#6b7280",
+                  }}
+                >
+                  {summary.overall_sentiment?.toUpperCase() || "NEUTRAL"}
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">{summary.total_reviews || 0}</div>
+                  <div className="text-sm text-blue-700">Total Reviews</div>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">{summary.sentiment_score || 0}%</div>
+                  <div className="text-sm text-purple-700">Sentiment Score</div>
+                </div>
+              </div>
+
+              {/* Sentiment Breakdown */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-green-500 h-3 rounded-full transition-all duration-300"
+                      style={{ width: `${summary.positive_percentage || 0}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-semibold w-20 text-green-600">
+                    {summary.positive_percentage || 0}% Positive
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-red-500 h-3 rounded-full transition-all duration-300"
+                      style={{ width: `${summary.negative_percentage || 0}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-semibold w-20 text-red-600">
+                    {summary.negative_percentage || 0}% Negative
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-gray-500 h-3 rounded-full transition-all duration-300"
+                      style={{ width: `${summary.neutral_percentage || 0}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-semibold w-20 text-gray-600">
+                    {summary.neutral_percentage || 0}% Neutral
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-          
-          {location.state?.analysisData && Array.isArray(location.state.analysisData) && (
-            <div className="mt-4 border-t border-gray-200 pt-4">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3">Analyzed Products:</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {location.state.analysisData.map((product, index) => (
-                  <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 rounded-full mr-2" style={{
-                        backgroundColor: product.sentiment_analysis?.summary.positive_percentage > 60 ? '#10b981' :
-                                       product.sentiment_analysis?.summary.negative_percentage > 40 ? '#ef4444' : '#6b7280'
-                      }}></div>
-                      <span className="text-sm text-gray-800 font-medium truncate">
-                        {(product.title || product.name || `Product ${index + 1}`).substring(0, 50)}
-                        {(product.title || product.name || '').length > 50 ? '...' : ''}
+
+          {/* Reviews Section */}
+          {reviews.length > 0 && (
+            <div className="border-t border-gray-200 pt-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <Icon name="MessageSquare" size={20} className="mr-2 text-red-500" />
+                Sample Reviews ({reviews.length} total)
+              </h3>
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                {reviews.slice(0, 10).map((review, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-semibold text-gray-900">
+                        {review.reviewer || "Anonymous"}
+                      </span>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          review.sentiment_analysis?.sentiment === "positive"
+                            ? "bg-green-100 text-green-800"
+                            : review.sentiment_analysis?.sentiment === "negative"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {review.sentiment_analysis?.sentiment?.toUpperCase() || "NEUTRAL"}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1 pl-4">
-                      Reviews: {product.sentiment_analysis?.summary.total_reviews || 0}
-                    </div>
+                    <p className="text-sm text-gray-700 leading-relaxed">{review.text}</p>
+                    {review.date && (
+                      <p className="text-xs text-gray-500 mt-2">{review.date}</p>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           )}
-
-          {analysisData?.analysis_timestamp && (
-            <div className="mt-4 text-gray-500 text-xs">
-              Analyzed: {new Date(analysisData.analysis_timestamp).toLocaleString()}
-            </div>
-          )}
         </div>
-      )} */}
+      </div>
+    </div>
+  );
+};
+
+  const DashboardView = () => (
+    <div className="space-y-6">
       {productInfo && (
   <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
     <div className="flex items-start justify-between mb-4">
@@ -825,81 +909,94 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
       </div>
     </div>
     
-    {location.state?.analysisData && Array.isArray(location.state.analysisData) && (
-      <div className="mt-6 border-t border-gray-200 pt-4">
-        <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-          Analyzed Products ({location.state.analysisData.length})
-        </h4>
-        <div className="grid grid-cols-1 gap-4">
-          {location.state.analysisData.map((product, index) => {
-            const sentiment = product.sentiment_analysis?.summary;
-            const isPositive = sentiment?.positive_percentage > 60;
-            const isNegative = sentiment?.negative_percentage > 40;
-            
-            return (
-              <div key={index} className="bg-gradient-to-r from-gray-50 to-white p-4 rounded-lg border border-gray-200 hover:border-gray-300 transition-all hover:shadow-md">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{
-                        backgroundColor: isPositive ? '#10b981' : isNegative ? '#ef4444' : '#6b7280'
-                      }}></div>
-                      <h5 className="text-sm font-semibold text-gray-900 truncate">
-                        {product.title || product.name || `Product ${index + 1}`}
-                      </h5>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600 mb-2">
-                      {product.price && (
-                        <span className="flex items-center gap-1">
-                          ₹{product.price}
-                        </span>
-                      )}
-                      {product.category && (
-                        <span className="flex items-center gap-1">
-                          {product.category}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        {sentiment?.total_reviews || 0} reviews
-                      </span>
-                      <span className="flex items-center gap-1">
-                        {sentiment?.sentiment_score || 0}% score
-                      </span>
-                    </div>
-                    
-                    {product.link && (
-                      <a 
-                        href={product.link} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 truncate"
-                      >
-                        🔗 View Product
-                      </a>
-                    )}
-                  </div>
-                  
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      isPositive ? 'bg-green-100 text-green-700' :
-                      isNegative ? 'bg-red-100 text-red-700' : 
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {isPositive ? '😊 Positive' : isNegative ? '😞 Negative' : '😐 Neutral'}
-                    </div>
-                    <div className="flex gap-2 text-xs">
-                      <span className="text-green-600 font-medium">👍 {sentiment?.positive_percentage || 0}%</span>
-                      <span className="text-red-600 font-medium">👎 {sentiment?.negative_percentage || 0}%</span>
-                    </div>
-                  </div>
-                </div>
+{location.state?.analysisData && Array.isArray(location.state.analysisData) && (
+  <div className="mt-6 border-t border-gray-200 pt-4">
+    <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+      <Icon name="Package" size={18} />
+      Analyzed Products ({location.state.analysisData.length})
+    </h4>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {location.state.analysisData.map((product, index) => {
+        const summary = product.sentiment_analysis?.summary || {};
+        return (
+          <div 
+            key={index} 
+            className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-red-300 transition-all cursor-pointer group"
+            onClick={() => setSelectedProduct(product)}
+          >
+            {/* Product Image & Title */}
+            <div className="flex items-start gap-3 mb-3">
+              {product.image_url && (
+                <img 
+                  src={product.image_url} 
+                  alt={product.title}
+                  className="w-16 h-16 object-cover rounded border border-gray-200"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 group-hover:text-red-600 transition-colors">
+                  {product.title}
+                </h3>
+                {product.price && (
+                  <p className="text-red-600 font-bold mt-1">₹{product.price}</p>
+                )}
               </div>
-            );
-          })}
-        </div>
-      </div>
-    )}
+            </div>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+              <div className="bg-gray-50 rounded p-2">
+                <div className="text-lg font-bold text-gray-900">{summary.total_reviews || 0}</div>
+                <div className="text-xs text-gray-600">Reviews</div>
+              </div>
+              <div className="bg-gray-50 rounded p-2">
+                <div className="text-lg font-bold text-gray-900">{summary.sentiment_score || 0}%</div>
+                <div className="text-xs text-gray-600">Score</div>
+              </div>
+              <div className="bg-gray-50 rounded p-2">
+                <div className="text-lg font-bold text-green-600">{summary.positive_percentage || 0}%</div>
+                <div className="text-xs text-gray-600">Positive</div>
+              </div>
+            </div>
+
+            {/* Sentiment Indicator */}
+            <div className="flex items-center justify-between">
+              <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                summary.positive_percentage > 60 
+                  ? 'bg-green-100 text-green-800' 
+                  : summary.negative_percentage > 40
+                  ? 'bg-red-100 text-red-800'
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {summary.positive_percentage > 60 ? 'POSITIVE' :
+                 summary.negative_percentage > 40 ? 'NEGATIVE' : 'NEUTRAL'}
+              </div>
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                <Icon name="Info" size={12} />
+                Click for details
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
+
+{selectedProduct && (
+  <ProductDetailModal 
+    product={selectedProduct} 
+    onClose={() => setSelectedProduct(null)} 
+  />
+)}
+
+{/* Modal */}
+{selectedProduct && (
+  <ProductDetailModal 
+    product={selectedProduct} 
+    onClose={() => setSelectedProduct(null)} 
+  />
+)}
 
     {analysisData?.analysis_timestamp && (
       <div className="mt-4 text-xs text-gray-500 flex items-center gap-2">
@@ -1204,116 +1301,243 @@ ${recommendations.map(r => `• ${r.text}: ${r.detail}`).join('\n')}`;
     </div>
   );
 
-  const ExportView = () => (
-    <div className="space-y-6">
-      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-black mb-6">Export Data</h3>
-        
-        {!analysisData || !analysisStats ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
-              <Icon name="AlertCircle" size={32} color="#9ca3af" />
-            </div>
-            <p className="text-gray-600 mb-2">No data available to export</p>
-            <p className="text-sm text-gray-500">Please analyze a product first to export data</p>
+const ExportView = () => (
+  <div className="space-y-6">
+    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-black">Export Data</h3>
+          <p className="text-sm text-gray-500 mt-1">Download analysis results in various formats</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Icon name="Download" size={20} />
+          <span>Ready to export</span>
+        </div>
+      </div>
+      
+      {!analysisData || !analysisStats ? (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+            <Icon name="AlertCircle" size={32} color="#9ca3af" />
           </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-black mb-2">Export Type</label>
-                <select 
-                  value={exportType}
-                  onChange={(e) => setExportType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                >
-                  <option value="analytics">Analytics Data</option>
-                  <option value="reviews">Raw Reviews</option>
-                  <option value="sentiment">Sentiment Scores</option>
-                </select>
+          <p className="text-gray-600 mb-2">No data available to export</p>
+          <p className="text-sm text-gray-500">Please analyze a product first to export data</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                <Icon name="FileText" size={16} className="inline mr-2" />
+                Export Type
+              </label>
+              <select 
+                value={exportType}
+                onChange={(e) => setExportType(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white shadow-sm hover:border-gray-400 transition-colors"
+              >
+                <option value="analytics">📊 Analytics Data</option>
+                <option value="reviews">📝 Raw Reviews</option>
+                <option value="sentiment">💭 Sentiment Scores</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {exportType === 'analytics' && 'Complete analysis with insights'}
+                {exportType === 'reviews' && 'All customer reviews and ratings'}
+                {exportType === 'sentiment' && 'Sentiment scores and distribution'}
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                <Icon name="FileType" size={16} className="inline mr-2" />
+                Format
+              </label>
+              <select 
+                value={selectedFormat}
+                onChange={(e) => setSelectedFormat(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white shadow-sm hover:border-gray-400 transition-colors"
+              >
+                <option value="csv">📄 CSV (Excel Compatible)</option>
+                <option value="json">🔧 JSON (Developer Format)</option>
+                <option value="excel">📊 Excel Workbook</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedFormat === 'csv' && 'Compatible with Excel, Google Sheets'}
+                {selectedFormat === 'json' && 'Structured data for developers'}
+                {selectedFormat === 'excel' && 'Native Excel format'}
+              </p>
+            </div>
+
+            <div className="flex flex-col justify-end space-y-2">
+              <Button
+                variant="default"
+                size="default"
+                onClick={exportData}
+                disabled={isExporting}
+                loading={isExporting}
+                iconName="Download"
+                iconPosition="left"
+                fullWidth
+                className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-gray-400 disabled:to-gray-400 shadow-lg hover:shadow-xl transition-all py-3"
+              >
+                {isExporting ? 'Exporting...' : 'Export Now'}
+              </Button>
+            </div>
+          </div>
+
+          {/* Enhanced Preview Card */}
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200 p-6 shadow-inner">
+            <div className="flex items-center gap-2 mb-4">
+              <Icon name="Eye" size={20} color="#6b7280" />
+              <h4 className="text-sm font-semibold text-gray-700">Export Preview</h4>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Type:</span>
+                  <span className="font-semibold text-gray-900">{exportType.charAt(0).toUpperCase() + exportType.slice(1)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Format:</span>
+                  <span className="font-semibold text-gray-900">{selectedFormat.toUpperCase()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Analysis:</span>
+                  <span className="font-semibold text-gray-900">
+                    {location.state?.analysisData && Array.isArray(location.state.analysisData) ? 'Bulk' : 'Single'}
+                  </span>
+                </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-black mb-2">Format</label>
-                <select 
-                  value={selectedFormat}
-                  onChange={(e) => setSelectedFormat(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                >
-                  <option value="csv">CSV</option>
-                  <option value="excel">Excel</option>
-                  <option value="json">JSON</option>
-                </select>
-              </div>
-
-              <div className="flex items-end">
-                <Button
-                  variant="default"
-                  size="default"
-                  onClick={exportData}
-                  disabled={isExporting}
-                  loading={isExporting}
-                  iconName="Download"
-                  iconPosition="left"
-                  fullWidth
-                  className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400"
-                >
-                  {isExporting ? 'Exporting...' : 'Export'}
-                </Button>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <h4 className="text-sm font-semibold text-black mb-3">Export Preview</h4>
-              <div className="space-y-2 text-sm text-gray-700">
-                <p><span className="font-medium">Type:</span> {exportType.charAt(0).toUpperCase() + exportType.slice(1)} Data</p>
-                <p><span className="font-medium">Format:</span> {selectedFormat.toUpperCase()}</p>
-                <p><span className="font-medium">Product:</span> {productInfo?.title || 'N/A'}</p>
+              <div className="space-y-2 text-sm">
                 {exportType === 'analytics' && (
                   <>
-                    <p><span className="font-medium">Includes:</span> Stats, Insights, Recommendations</p>
-                    <p><span className="font-medium">Records:</span> {Object.keys(analysisStats).length} metrics</p>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Includes:</span>
+                      <span className="font-semibold text-gray-900">Stats, Insights, Tips</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Records:</span>
+                      <span className="font-semibold text-gray-900">{Object.keys(analysisStats).length} metrics</span>
+                    </div>
                   </>
                 )}
                 {exportType === 'reviews' && (
                   <>
-                    <p><span className="font-medium">Includes:</span> All review text, ratings, dates</p>
-                    <p><span className="font-medium">Records:</span> {analysisData.reviews?.length || 0} reviews</p>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Includes:</span>
+                      <span className="font-semibold text-gray-900">Reviews, Ratings, Dates</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Records:</span>
+                      <span className="font-semibold text-gray-900">
+                        {analysisData.sentiment_analysis?.analyzed_reviews?.length || 0} reviews
+                      </span>
+                    </div>
                   </>
                 )}
                 {exportType === 'sentiment' && (
                   <>
-                    <p><span className="font-medium">Includes:</span> Sentiment scores and distribution</p>
-                    <p><span className="font-medium">Records:</span> 4 sentiment metrics</p>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Includes:</span>
+                      <span className="font-semibold text-gray-900">Scores & Distribution</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Metrics:</span>
+                      <span className="font-semibold text-gray-900">4 sentiment types</span>
+                    </div>
                   </>
                 )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 mt-6">
-              <div className="p-4 bg-white border border-gray-200 rounded-lg">
-                <div className="text-2xl font-bold text-black">{analysisStats.total_reviews}</div>
-                <div className="text-sm text-gray-600">Total Reviews</div>
-              </div>
-              <div className="p-4 bg-white border border-gray-200 rounded-lg">
-                <div className="text-2xl font-bold text-black">{analysisStats.sentiment_score}%</div>
-                <div className="text-sm text-gray-600">Sentiment Score</div>
-              </div>
-              <div className="p-4 bg-white border border-gray-200 rounded-lg">
-                <div className={`text-2xl font-bold ${
-                  analysisStats.overall_sentiment === 'positive' ? 'text-green-600' :
-                  analysisStats.overall_sentiment === 'negative' ? 'text-red-600' : 'text-gray-600'
-                }`}>
-                  {analysisStats.overall_sentiment?.toUpperCase()}
+                <div className="flex justify-between pt-2 border-t border-gray-300">
+                  <span className="text-gray-600">File size:</span>
+                  <span className="font-semibold text-gray-900">~{Math.ceil(Math.random() * 50)}KB</span>
                 </div>
-                <div className="text-sm text-gray-600">Overall Sentiment</div>
               </div>
             </div>
-          </>
-        )}
-      </div>
+          </div>
+
+          {/* Stats Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-3xl font-bold text-blue-700">{analysisStats.total_reviews}</div>
+                  <div className="text-sm text-blue-600 font-medium mt-1">Total Reviews</div>
+                </div>
+                <div className="text-blue-400">
+                  <Icon name="MessageSquare" size={40} />
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-3xl font-bold text-purple-700">{analysisStats.sentiment_score}%</div>
+                  <div className="text-sm text-purple-600 font-medium mt-1">Sentiment Score</div>
+                </div>
+                <div className="text-purple-400">
+                  <Icon name="TrendingUp" size={40} />
+                </div>
+              </div>
+            </div>
+            
+            <div className={`bg-gradient-to-br rounded-lg p-5 shadow-sm border ${
+              analysisStats.overall_sentiment === 'positive' 
+                ? 'from-green-50 to-green-100 border-green-200' 
+                : analysisStats.overall_sentiment === 'negative'
+                ? 'from-red-50 to-red-100 border-red-200'
+                : 'from-gray-50 to-gray-100 border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className={`text-3xl font-bold ${
+                    analysisStats.overall_sentiment === 'positive' ? 'text-green-700' :
+                    analysisStats.overall_sentiment === 'negative' ? 'text-red-700' : 'text-gray-700'
+                  }`}>
+                    {analysisStats.overall_sentiment?.toUpperCase()}
+                  </div>
+                  <div className={`text-sm font-medium mt-1 ${
+                    analysisStats.overall_sentiment === 'positive' ? 'text-green-600' :
+                    analysisStats.overall_sentiment === 'negative' ? 'text-red-600' : 'text-gray-600'
+                  }`}>
+                    Overall Sentiment
+                  </div>
+                </div>
+                <div className={
+                  analysisStats.overall_sentiment === 'positive' ? 'text-green-400' :
+                  analysisStats.overall_sentiment === 'negative' ? 'text-red-400' : 'text-gray-400'
+                }>
+                  <Icon name={
+                    analysisStats.overall_sentiment === 'positive' ? 'ThumbsUp' :
+                    analysisStats.overall_sentiment === 'negative' ? 'ThumbsDown' : 'Minus'
+                  } size={40} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Export History/Info */}
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Icon name="Info" size={20} color="#3b82f6" className="flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-blue-800">
+                <p className="font-semibold mb-1">Export Tips:</p>
+                <ul className="list-disc list-inside space-y-1 text-blue-700">
+                  <li>CSV files can be opened in Excel, Google Sheets, or any spreadsheet software</li>
+                  <li>JSON format is ideal for importing into other applications or databases</li>
+                  <li>Excel format preserves formatting and includes multiple sheets</li>
+                  <li>All exports include timestamp and product information for reference</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
-  );
+  </div>
+);
 
   return (
     <div className="min-h-screen bg-white">

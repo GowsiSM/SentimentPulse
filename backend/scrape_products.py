@@ -26,8 +26,8 @@ def setup_driver():
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
 
-def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
-    """Scrape reviews using Selenium - FIXED VERSION"""
+def scrape_product_reviews_selenium(product_url, max_reviews=None, driver=None):
+    """Scrape ALL reviews using Selenium - NO LIMITS"""
     should_quit = driver is None
     if driver is None:
         driver = setup_driver()
@@ -43,7 +43,8 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
             "a[href='#reviews']",
             "#reviewsContainer",
             ".ratingTab",
-            "li.ratingTab a"
+            "li.ratingTab a",
+            "a.desc-tab.ratingTab"  # Added from HTML
         ]
         
         for selector in tab_selectors:
@@ -56,7 +57,7 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
                 driver.execute_script("arguments[0].click();", reviews_tab)
                 print(f"✓ Clicked reviews tab using: {selector}")
                 review_tab_clicked = True
-                time.sleep(3)  # Wait for reviews to load
+                time.sleep(3)
                 break
             except:
                 continue
@@ -65,13 +66,14 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
             print("✗ Could not click reviews tab")
             return []
         
-        # Wait for reviews container with multiple possible selectors
+        # Wait for reviews container
         reviews_found = False
         container_selectors = [
             "#reviewsContainer",
             ".user-review",
             ".review-container",
-            "[class*='review']"
+            "[class*='review']",
+            ".tab-content.activeTab"  # Added from HTML
         ]
         
         for selector in container_selectors:
@@ -89,15 +91,69 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
             print("✗ Reviews container not found")
             return []
         
-        # Scroll to load more reviews
-        for _ in range(3):
+        # AGGRESSIVE SCROLLING AND LOAD MORE CLICKING
+        print("🔄 Loading ALL reviews...")
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        scroll_attempts = 0
+        max_scroll_attempts = 100  # Increased significantly
+        no_change_count = 0
+        
+        while scroll_attempts < max_scroll_attempts:
+            # Scroll to bottom
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
+            
+            # Try to click "Load More" or "Show More" buttons
+            load_more_clicked = False
+            load_more_selectors = [
+                "button[class*='load-more']",
+                "button[class*='show-more']",
+                "a[class*='load-more']",
+                ".load-more-reviews",
+                "#load-more",
+                "button.btn[onclick*='loadMore']",
+                ".viewMoreReviews",
+                "#viewMoreReviews",
+                "a[href*='#loadmore']"
+            ]
+            
+            for selector in load_more_selectors:
+                try:
+                    load_more_btn = driver.find_element(By.CSS_SELECTOR, selector)
+                    if load_more_btn.is_displayed() and load_more_btn.is_enabled():
+                        driver.execute_script("arguments[0].scrollIntoView(true);", load_more_btn)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].click();", load_more_btn)
+                        print(f"✓ Clicked 'Load More' button using: {selector}")
+                        time.sleep(3)  # Wait for new reviews to load
+                        load_more_clicked = True
+                        no_change_count = 0  # Reset counter when button clicked
+                        break
+                except:
+                    continue
+            
+            # Calculate new scroll height
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            
+            if new_height == last_height and not load_more_clicked:
+                no_change_count += 1
+                if no_change_count >= 5:  # If no change 5 times consecutively
+                    print(f"✓ Reached end of reviews after {scroll_attempts} scrolls")
+                    break
+            else:
+                no_change_count = 0
+            
+            last_height = new_height
+            scroll_attempts += 1
+            
+            # Print progress every 10 scrolls
+            if scroll_attempts % 10 == 0:
+                current_reviews = len(driver.find_elements(By.CSS_SELECTOR, ".user-review, .reviewCard, [class*='review-item']"))
+                print(f"  Progress: {current_reviews} reviews loaded... (scroll #{scroll_attempts})")
         
-        # Get all review items - TRY MULTIPLE SELECTORS
-        # In scrape_products.py - Replace the review extraction section starting from line 95
-
-        # Get all review items - TRY MULTIPLE SELECTORS
+        print(f"✓ Finished loading reviews. Total attempts: {scroll_attempts}")
+        
+        # Get ALL review items with multiple selectors
         review_items = []
         review_selectors = [
             ".user-review",
@@ -105,11 +161,8 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
             ".review-card",
             "[class*='review-item']",
             "[class*='user-review']",
-            "#reviewsContainer > div",
-            ".review",
-            ".review-entry",
-            ".reviewdata",
-            ".reviewtext"
+            "#reviewsContainer .tab-content .clearfix",  # From HTML structure
+            ".comp-review-wrapper .review"
         ]
         
         for selector in review_selectors:
@@ -120,32 +173,24 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
         
         if not review_items:
             print("✗ No review items found")
-            # Try alternative approach - look for any divs that might contain reviews
-            all_divs = driver.find_elements(By.CSS_SELECTOR, "#reviewsContainer div")
-            review_items = [div for div in all_divs if len(div.text.strip()) > 50]  # Text length filter
-            print(f"✓ Found {len(review_items)} review elements using alternative approach")
-        
-        if not review_items:
-            print("✗ No review items found after all attempts")
             return []
         
+        print(f"📝 Processing ALL {len(review_items)} reviews...")
+        
         reviews = []
-        for i, item in enumerate(review_items, 1):  # Removed max_reviews limit
+        for i, item in enumerate(review_items, 1):
             try:
-                # Extract review text - IMPROVED SELECTORS FOR SNAPDEAL
+                # Extract review text
                 review_text = ""
                 text_selectors = [
-                    ".user-review .review-text",
                     ".user-review-text",
                     ".reviewText",
                     ".review-text",
                     ".reviewdesc",
                     ".rvw-desc",
                     ".review-content",
-                    ".reviewdata",
                     "p",
-                    "span",
-                    "div"
+                    "span"
                 ]
                 
                 for selector in text_selectors:
@@ -153,10 +198,7 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
                         text_elements = item.find_elements(By.CSS_SELECTOR, selector)
                         for text_elem in text_elements:
                             text = text_elem.text.strip()
-                            # More lenient text validation for Snapdeal
-                            if text and len(text) > 20 and any(word in text.lower() for word in 
-                                                              ['good', 'nice', 'quality', 'product', 'like', 'recommend', 
-                                                               'happy', 'bad', 'poor', 'worst', 'not good', 'disappointed']):
+                            if text and len(text) > 20:
                                 review_text = text
                                 break
                         if review_text:
@@ -164,63 +206,48 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
                     except:
                         continue
                 
-                # If no text found with selectors, try getting all text from the item
                 if not review_text:
                     all_text = item.text.strip()
-                    # Filter for meaningful review text
-                    if len(all_text) > 30 and len(all_text) < 1000:
+                    if len(all_text) > 30 and len(all_text) < 2000:
                         review_text = all_text
                 
                 if not review_text or len(review_text) < 20:
-                    print(f"  ✗ Review {i}: Text too short or empty")
                     continue
                 
-                # Extract rating - IMPROVED FOR SNAPDEAL
+                # Extract rating
                 rating = "No rating"
                 try:
-                    # Snapdeal rating selectors
                     rating_selectors = [
                         ".filled-stars",
                         ".star-rating",
                         "[class*='rating']",
-                        "[class*='star']",
-                        ".rating"
+                        "[class*='star']"
                     ]
                     
                     for selector in rating_selectors:
                         try:
                             rating_elem = item.find_element(By.CSS_SELECTOR, selector)
-                            # Get rating from style attribute or text
                             style = rating_elem.get_attribute("style") or ""
                             if "width" in style:
-                                width_match = re.search(r'width:\s*(\d+)%', style)
+                                import re
+                                width_match = re.search(r'width:\s*(\d+\.?\d*)%', style)
                                 if width_match:
-                                    width = int(width_match.group(1))
+                                    width = float(width_match.group(1))
                                     rating = f"{width/20:.1f}/5"
                                     break
-                            # Try getting rating from text
-                            rating_text = rating_elem.text.strip()
-                            if rating_text and any(char.isdigit() for char in rating_text):
-                                rating = rating_text
-                                break
                         except:
                             continue
-                except Exception as e:
-                    print(f"    Rating extraction failed: {e}")
+                except:
+                    pass
                 
-                # Extract reviewer name and date - IMPROVED FOR SNAPDEAL
+                # Extract reviewer and date
                 reviewer = "Anonymous"
                 review_date = "Unknown date"
                 try:
-                    # Look for reviewer info in the item
                     meta_selectors = [
                         ".reviewer-name",
-                        ".user-name", 
-                        ".reviewer",
-                        ".by",
-                        ".author",
-                        "[class*='user']",
-                        "[class*='reviewer']"
+                        ".user-name",
+                        ".reviewer"
                     ]
                     
                     for selector in meta_selectors:
@@ -228,23 +255,19 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
                             meta_elem = item.find_element(By.CSS_SELECTOR, selector)
                             meta_text = meta_elem.text.strip()
                             if meta_text:
-                                # Try to parse "by UserName on Date" format
                                 if " on " in meta_text:
                                     parts = meta_text.split(" on ")
                                     if len(parts) == 2:
                                         reviewer = parts[0].replace("by", "").replace("By", "").strip()
                                         review_date = parts[1].strip()
                                         break
-                                elif "by" in meta_text.lower():
-                                    reviewer = meta_text.replace("by", "").replace("By", "").strip()
-                                    break
                                 else:
                                     reviewer = meta_text
                                     break
                         except:
                             continue
-                except Exception as e:
-                    print(f"    Reviewer/date extraction failed: {e}")
+                except:
+                    pass
                 
                 review_data = {
                     "rating": rating,
@@ -255,13 +278,15 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
                 }
                 
                 reviews.append(review_data)
-                print(f"✓ Review {i}: {review_text[:80]}... (Rating: {rating})")
+                
+                # Print progress every 10 reviews
+                if i % 10 == 0:
+                    print(f"  ✓ Processed {i}/{len(review_items)} reviews...")
                 
             except Exception as e:
-                print(f"✗ Error parsing review {i}: {e}")
                 continue
         
-        print(f"✓ Successfully extracted {len(reviews)} reviews")
+        print(f"✅ Successfully extracted ALL {len(reviews)} reviews")
         return reviews
         
     except Exception as e:
@@ -271,7 +296,7 @@ def scrape_product_reviews_selenium(product_url, max_reviews=50, driver=None):
     finally:
         if should_quit and driver:
             driver.quit()
-
+            
 def debug_page_structure(driver, product_url):
     """Debug function to save page structure for analysis"""
     try:
@@ -349,7 +374,7 @@ def scrape_category_products(category, max_products=20):
                     print(f"\n[{len(products)+1}/{max_products}] {title[:60]}...")
                     
                     # Scrape reviews for this product
-                    reviews = scrape_product_reviews_selenium(url, max_reviews=50, driver=driver)
+                    reviews = scrape_product_reviews_selenium(url, max_reviews=None, driver=driver)  
                     
                     # Extract other product info
                     price = None
