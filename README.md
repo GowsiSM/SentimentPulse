@@ -1,4 +1,4 @@
-# Sentiment Analysis App
+# SentimentPulse
 
 A full-stack application for scraping product reviews, performing sentiment analysis using NLP and ML models, and visualizing the results in an interactive dashboard.
 
@@ -470,10 +470,6 @@ The application supports multiple export formats:
 - **JSON**: Structured data for programmatic use
 - **PDF**: Formatted reports (exported as .txt)
 
-## License
-
-This project is licensed under the MIT License.
-
 ## Contributing
 
 Contributions are welcome! Please follow these steps:
@@ -483,13 +479,6 @@ Contributions are welcome! Please follow these steps:
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
-
-## Support
-
-For issues and questions:
-- Open an issue on GitHub
-- Check existing documentation
-- Review troubleshooting section
 
 ## Acknowledgments
 
