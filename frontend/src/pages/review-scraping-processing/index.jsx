@@ -101,32 +101,72 @@ const ReviewScrapingProcessing = () => {
           {/* Progress Section */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="text-center">
-              {/* Animated Loading Spinner */}
-<div className="flex flex-col items-center justify-center mb-6">
-  {isProcessing ? (
-    <>
-      {/* Modern animated spinner */}
-      <div className="relative w-16 h-16">
-        <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-        <div className="absolute inset-0 rounded-full border-4 border-t-blue-600 border-b-transparent animate-spin"></div>
-      </div>
+              {/* Fixed Animated Loading Spinner - REPLACED SECTION */}
+              <div className="flex flex-col items-center justify-center mb-6">
+                {isProcessing ? (
+                  <div className="flex flex-col items-center justify-center">
+                    {/* Enhanced animated spinner */}
+                    <div className="relative w-20 h-20 mb-4">
+                      {/* Outer static ring */}
+                      <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+                      {/* Animated gradient ring */}
+                      <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-600 border-r-blue-400 animate-spin"></div>
+                      {/* Pulsing inner dot */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                      </div>
+                    </div>
 
-      <p className="mt-4 text-gray-700 font-medium animate-pulse">
-        Scraping reviews...
-      </p>
-    </>
-  ) : (
-    <div className="flex flex-col items-center justify-center">
-      <div className="relative w-16 h-16 flex items-center justify-center">
-        <div className="absolute inset-0 rounded-full border-4 border-green-200"></div>
-        <div className="absolute inset-0 rounded-full border-4 border-t-green-600 animate-[spin_1s_ease-in-out_1]"></div>
-        <Icon name="CheckCircle" size={28} className="text-green-600" />
-      </div>
-      <p className="mt-3 text-gray-700 font-medium">Scraping Complete!</p>
-    </div>
-  )}
-</div>
+                    {/* Animated text with dots */}
+                    <div className="text-center">
+                      <p className="text-gray-700 font-medium mb-1">
+                        Scraping reviews
+                        <span className="inline-flex ml-1">
+                          <span className="animate-bounce">.</span>
+                          <span className="animate-bounce" style={{ animationDelay: '0.1s' }}>.</span>
+                          <span className="animate-bounce" style={{ animationDelay: '0.2s' }}>.</span>
+                        </span>
+                      </p>
+                      {products[currentProductIndex] && (
+                        <p className="text-sm text-gray-500 max-w-xs truncate">
+                          Currently processing: {products[currentProductIndex].title}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center">
+                    {/* Success animation */}
+                    <div className="relative w-20 h-20 mb-4">
+                      {/* Background circle */}
+                      <div className="absolute inset-0 rounded-full bg-green-100 border-4 border-green-200"></div>
+                      {/* Animated checkmark circle */}
+                      <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-green-600 border-r-green-600 animate-spin"></div>
+                      {/* Check icon with scale animation */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Icon 
+                          name="CheckCircle" 
+                          size={32} 
+                          className="text-green-600" 
+                          style={{
+                            animation: 'scaleIn 0.3s ease-out'
+                          }}
+                        />
+                      </div>
+                    </div>
 
+                    {/* Success text */}
+                    <div className="text-center">
+                      <p className="text-gray-700 font-medium text-lg mb-1">
+                        Scraping Complete!
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Successfully processed {scrapedResults.length} products
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Status */}
               <div className="flex items-center justify-center gap-2 mb-2">
@@ -245,6 +285,15 @@ const ReviewScrapingProcessing = () => {
           )}
         </div>
       </div>
+
+      {/* Add CSS for scaleIn animation */}
+      <style jsx>{`
+        @keyframes scaleIn {
+          0% { transform: scale(0); opacity: 0; }
+          70% { transform: scale(1.1); opacity: 0.7; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };

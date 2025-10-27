@@ -223,130 +223,416 @@ const ReportsAnalytics = () => {
     { name: 'Neutral', value: analysisStats.neutral_percentage || 0, color: '#d1d5db' }
   ] : [];
 
-  const generateInsights = () => {
-    if (!analysisStats) return [];
+const generateInsights = () => {
+  if (!analysisStats) return [];
 
-    const insights = [];
-    const positivePercent = analysisStats.positive_percentage || 0;
-    const negativePercent = analysisStats.negative_percentage || 0;
-    const neutralPercent = analysisStats.neutral_percentage || 0;
-    const totalReviews = analysisStats.total_reviews || 0;
+  const insights = [];
+  const positivePercent = analysisStats.positive_percentage || 0;
+  const negativePercent = analysisStats.negative_percentage || 0;
+  const neutralPercent = analysisStats.neutral_percentage || 0;
+  const totalReviews = analysisStats.total_reviews || 0;
+  const sentimentScore = analysisStats.sentiment_score || 0;
 
-    if (totalReviews === 0) {
+  if (totalReviews === 0) {
+    insights.push({
+      text: 'No reviews available for analysis',
+      type: 'info',
+      detail: 'Please scrape reviews first to get insights',
+      priority: 'low'
+    });
+    return insights;
+  }
+
+  // 1. Overall Sentiment Strength Analysis
+  if (sentimentScore >= 85) {
+    insights.push({
+      text: `Exceptional customer satisfaction (${sentimentScore}% score)`,
+      type: 'positive',
+      detail: 'This product is performing exceptionally well with customers',
+      priority: 'high',
+      icon: 'TrendingUp'
+    });
+  } else if (sentimentScore >= 70) {
+    insights.push({
+      text: `Strong positive sentiment (${sentimentScore}% score)`,
+      type: 'positive',
+      detail: 'Customers are very satisfied with this product',
+      priority: 'high',
+      icon: 'ThumbsUp'
+    });
+  } else if (sentimentScore >= 55) {
+    insights.push({
+      text: `Moderately positive sentiment (${sentimentScore}% score)`,
+      type: 'neutral',
+      detail: 'Product has good acceptance but room for improvement',
+      priority: 'medium',
+      icon: 'AlertCircle'
+    });
+  } else if (sentimentScore >= 40) {
+    insights.push({
+      text: `Mixed customer sentiment (${sentimentScore}% score)`,
+      type: 'warning',
+      detail: 'Significant concerns exist alongside positive feedback',
+      priority: 'high',
+      icon: 'AlertTriangle'
+    });
+  } else if (sentimentScore >= 25) {
+    insights.push({
+      text: `Low sentiment score (${sentimentScore}%)`,
+      type: 'negative',
+      detail: 'Critical issues are impacting customer satisfaction',
+      priority: 'critical',
+      icon: 'XCircle'
+    });
+  } else {
+    insights.push({
+      text: `Very poor sentiment score (${sentimentScore}%)`,
+      type: 'negative',
+      detail: 'Urgent action required - product facing severe customer dissatisfaction',
+      priority: 'critical',
+      icon: 'AlertOctagon'
+    });
+  }
+
+  // 2. Sentiment Distribution Analysis
+  if (positivePercent >= 75) {
+    insights.push({
+      text: `Dominant positive feedback (${positivePercent}%)`,
+      type: 'positive',
+      detail: `${analysisStats.positive_reviews} out of ${totalReviews} customers highly satisfied`,
+      priority: 'medium',
+      icon: 'Star'
+    });
+  } else if (positivePercent >= 60) {
+    insights.push({
+      text: `Majority positive reviews (${positivePercent}%)`,
+      type: 'positive',
+      detail: 'Strong customer approval with some areas for improvement',
+      priority: 'medium',
+      icon: 'CheckCircle'
+    });
+  }
+
+  if (negativePercent >= 40) {
+    insights.push({
+      text: `High negative feedback (${negativePercent}%)`,
+      type: 'negative',
+      detail: `${analysisStats.negative_reviews} customers reported issues - immediate attention needed`,
+      priority: 'critical',
+      icon: 'AlertTriangle'
+    });
+  } else if (negativePercent >= 25) {
+    insights.push({
+      text: `Significant negative reviews (${negativePercent}%)`,
+      type: 'warning',
+      detail: `${analysisStats.negative_reviews} customers dissatisfied - investigate common complaints`,
+      priority: 'high',
+      icon: 'AlertCircle'
+    });
+  } else if (negativePercent >= 15) {
+    insights.push({
+      text: `Moderate negative feedback (${negativePercent}%)`,
+      type: 'warning',
+      detail: 'Some customer concerns need addressing',
+      priority: 'medium',
+      icon: 'Info'
+    });
+  }
+
+  if (neutralPercent >= 50) {
+    insights.push({
+      text: `High neutral sentiment (${neutralPercent}%)`,
+      type: 'neutral',
+      detail: 'Many customers have moderate opinions - opportunity to excel',
+      priority: 'medium',
+      icon: 'Minus'
+    });
+  } else if (neutralPercent >= 35) {
+    insights.push({
+      text: `Balanced mixed opinions (${neutralPercent}% neutral)`,
+      type: 'neutral',
+      detail: 'Product has diverse feedback - focus on converting neutral to positive',
+      priority: 'low',
+      icon: 'MinusCircle'
+    });
+  }
+
+  // 3. Review Volume Analysis
+  if (totalReviews >= 100) {
+    insights.push({
+      text: `Comprehensive dataset (${totalReviews} reviews)`,
+      type: 'info',
+      detail: 'Large sample size provides reliable sentiment analysis',
+      priority: 'low',
+      icon: 'Database'
+    });
+  } else if (totalReviews >= 50) {
+    insights.push({
+      text: `Good sample size (${totalReviews} reviews)`,
+      type: 'info',
+      detail: 'Sufficient data for meaningful insights',
+      priority: 'low',
+      icon: 'FileText'
+    });
+  } else if (totalReviews >= 20) {
+    insights.push({
+      text: `Moderate review count (${totalReviews} reviews)`,
+      type: 'info',
+      detail: 'More reviews would improve analysis confidence',
+      priority: 'low',
+      icon: 'File'
+    });
+  } else {
+    insights.push({
+      text: `Limited reviews (${totalReviews} reviews)`,
+      type: 'warning',
+      detail: 'Consider gathering more customer feedback for better insights',
+      priority: 'medium',
+      icon: 'AlertCircle'
+    });
+  }
+
+  // 4. Sentiment Balance Analysis
+  const sentimentGap = Math.abs(positivePercent - negativePercent);
+  if (sentimentGap >= 60) {
+    if (positivePercent > negativePercent) {
       insights.push({
-        text: 'No reviews available for analysis',
-        type: 'info',
-        detail: 'Please scrape reviews first'
-      });
-      return insights;
-    }
-
-    if (positivePercent > 70) {
-      insights.push({
-        text: `Strong positive sentiment (${positivePercent}%)`,
+        text: 'Overwhelming positive consensus',
         type: 'positive',
-        detail: 'Customers are very satisfied with this product'
-      });
-    } else if (negativePercent > 30) {
-      insights.push({
-        text: `Significant negative feedback (${negativePercent}%)`,
-        type: 'negative',
-        detail: 'Consider addressing customer concerns'
-      });
-    } else if (neutralPercent > 50) {
-      insights.push({
-        text: 'Mostly neutral opinions',
-        type: 'neutral',
-        detail: 'Customers have mixed or moderate feedback'
+        detail: `${sentimentGap}% gap between positive and negative reviews`,
+        priority: 'low',
+        icon: 'Award'
       });
     } else {
       insights.push({
-        text: 'Balanced customer opinions',
-        type: 'neutral',
-        detail: 'Product has diverse feedback across sentiments'
-      });
-    }
-
-    if (totalReviews > 0) {
-      insights.push({
-        text: `Based on ${totalReviews} reviews`,
-        type: 'info',
-        detail: 'Comprehensive analysis completed'
-      });
-    }
-
-    const sentimentScore = analysisStats.sentiment_score || 0;
-    if (sentimentScore > 70) {
-      insights.push({
-        text: `High sentiment score: ${sentimentScore}%`,
-        type: 'positive',
-        detail: 'Excellent customer satisfaction'
-      });
-    } else if (sentimentScore < 40) {
-      insights.push({
-        text: `Low sentiment score: ${sentimentScore}%`,
+        text: 'Critical sentiment imbalance',
         type: 'negative',
-        detail: 'Need to improve customer experience'
+        detail: `${sentimentGap}% gap - severe customer satisfaction issues`,
+        priority: 'critical',
+        icon: 'XOctagon'
       });
     }
+  } else if (sentimentGap <= 20) {
+    insights.push({
+      text: 'Polarized customer opinions',
+      type: 'warning',
+      detail: 'Close balance between positive and negative feedback',
+      priority: 'high',
+      icon: 'Scale'
+    });
+  }
 
-    return insights;
-  };
+  // Sort by priority
+  const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  insights.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+
+  return insights;
+};
+
 
   const insights = generateInsights();
 
-  const generateRecommendations = () => {
-    if (!analysisStats) return [];
+const generateRecommendations = () => {
+  if (!analysisStats) return [];
 
-    const recommendations = [];
-    const positivePercent = analysisStats.positive_percentage || 0;
-    const negativePercent = analysisStats.negative_percentage || 0;
-    const totalReviews = analysisStats.total_reviews || 0;
+  const recommendations = [];
+  const positivePercent = analysisStats.positive_percentage || 0;
+  const negativePercent = analysisStats.negative_percentage || 0;
+  const neutralPercent = analysisStats.neutral_percentage || 0;
+  const totalReviews = analysisStats.total_reviews || 0;
+  const sentimentScore = analysisStats.sentiment_score || 0;
 
-    if (totalReviews === 0) {
-      recommendations.push({
-        text: 'Scrape more product reviews',
-        detail: 'No reviews available for analysis'
-      });
-      return recommendations;
-    }
-
-    if (positivePercent > 70) {
-      recommendations.push({
-        text: 'Leverage positive reviews for marketing',
-        detail: 'Use customer testimonials to boost sales'
-      });
-      recommendations.push({
-        text: 'Maintain product quality standards',
-        detail: 'Continue delivering excellent customer experience'
-      });
-    } else if (negativePercent > 30) {
-      recommendations.push({
-        text: 'Address negative feedback promptly',
-        detail: 'Identify and resolve common customer complaints'
-      });
-      recommendations.push({
-        text: 'Improve product quality or features',
-        detail: 'Consider customer suggestions for enhancements'
-      });
-    } else {
-      recommendations.push({
-        text: 'Focus on customer engagement',
-        detail: 'Encourage more detailed reviews from customers'
-      });
-      recommendations.push({
-        text: 'Monitor sentiment trends regularly',
-        detail: 'Track changes in customer perception over time'
-      });
-    }
-
+  if (totalReviews === 0) {
     recommendations.push({
-      text: 'Continue sentiment monitoring',
-      detail: 'Regular analysis helps maintain product quality'
+      text: 'Start gathering customer feedback',
+      detail: 'Scrape product reviews to begin sentiment analysis',
+      action: 'Scrape Reviews',
+      priority: 'high',
+      icon: 'Search'
     });
-
     return recommendations;
-  };
+  }
+
+  // 1. Based on Sentiment Score
+  if (sentimentScore >= 80) {
+    recommendations.push({
+      text: 'Leverage success in marketing campaigns',
+      detail: 'Use positive testimonials and high ratings in promotional materials',
+      action: 'Create Marketing Assets',
+      priority: 'high',
+      icon: 'TrendingUp'
+    });
+    recommendations.push({
+      text: 'Maintain quality and consistency',
+      detail: 'Document what makes this product successful and replicate',
+      action: 'Document Best Practices',
+      priority: 'medium',
+      icon: 'CheckCircle'
+    });
+    recommendations.push({
+      text: 'Encourage more customer reviews',
+      detail: 'Implement review incentive programs to gather more feedback',
+      action: 'Launch Review Program',
+      priority: 'low',
+      icon: 'MessageSquare'
+    });
+  } else if (sentimentScore >= 60) {
+    recommendations.push({
+      text: 'Identify and address minor issues',
+      detail: 'Analyze neutral and negative reviews for common improvement areas',
+      action: 'Review Analysis',
+      priority: 'high',
+      icon: 'Search'
+    });
+    recommendations.push({
+      text: 'Enhance product features',
+      detail: 'Consider customer suggestions from reviews for next iteration',
+      action: 'Feature Enhancement',
+      priority: 'medium',
+      icon: 'Zap'
+    });
+    recommendations.push({
+      text: 'Improve customer service response',
+      detail: 'Address customer concerns promptly to prevent escalation',
+      action: 'CS Training',
+      priority: 'medium',
+      icon: 'Headphones'
+    });
+  } else if (sentimentScore >= 40) {
+    recommendations.push({
+      text: 'Urgent: Address critical customer concerns',
+      detail: 'Prioritize resolving issues mentioned in negative reviews',
+      action: 'Crisis Management',
+      priority: 'critical',
+      icon: 'AlertTriangle'
+    });
+    recommendations.push({
+      text: 'Conduct detailed product review',
+      detail: 'Evaluate product quality, features, and customer expectations',
+      action: 'Product Audit',
+      priority: 'high',
+      icon: 'Package'
+    });
+    recommendations.push({
+      text: 'Implement customer feedback loop',
+      detail: 'Directly contact dissatisfied customers to understand issues',
+      action: 'Customer Outreach',
+      priority: 'high',
+      icon: 'Phone'
+    });
+  } else {
+    recommendations.push({
+      text: 'CRITICAL: Immediate product intervention required',
+      detail: 'Consider product recall or major redesign based on severity',
+      action: 'Emergency Review',
+      priority: 'critical',
+      icon: 'AlertOctagon'
+    });
+    recommendations.push({
+      text: 'Stop marketing until issues resolved',
+      detail: 'Prevent further damage to brand reputation',
+      action: 'Pause Campaigns',
+      priority: 'critical',
+      icon: 'StopCircle'
+    });
+    recommendations.push({
+      text: 'Launch comprehensive damage control',
+      detail: 'Offer refunds, replacements, and public acknowledgment of issues',
+      action: 'Damage Control',
+      priority: 'critical',
+      icon: 'Shield'
+    });
+  }
+
+  // 2. Based on Negative Feedback Percentage
+  if (negativePercent >= 40) {
+    recommendations.push({
+      text: 'Analyze common complaint patterns',
+      detail: `${analysisStats.negative_reviews} negative reviews need categorization and resolution`,
+      action: 'Pattern Analysis',
+      priority: 'critical',
+      icon: 'Target'
+    });
+    recommendations.push({
+      text: 'Establish rapid response team',
+      detail: 'Create dedicated team to address customer complaints',
+      action: 'Form Response Team',
+      priority: 'high',
+      icon: 'Users'
+    });
+  } else if (negativePercent >= 20) {
+    recommendations.push({
+      text: 'Proactive issue resolution',
+      detail: 'Contact customers with negative experiences and offer solutions',
+      action: 'Customer Resolution',
+      priority: 'high',
+      icon: 'PhoneCall'
+    });
+  }
+
+  // 3. Based on Neutral Percentage
+  if (neutralPercent >= 40) {
+    recommendations.push({
+      text: 'Convert neutral customers to advocates',
+      detail: 'Engage with neutral reviewers to exceed expectations',
+      action: 'Customer Engagement',
+      priority: 'medium',
+      icon: 'Users'
+    });
+    recommendations.push({
+      text: 'Differentiate product value proposition',
+      detail: 'Clearly communicate unique benefits to stand out',
+      action: 'Marketing Refresh',
+      priority: 'medium',
+      icon: 'Award'
+    });
+  }
+
+  // 4. Based on Positive Feedback
+  if (positivePercent >= 60) {
+    recommendations.push({
+      text: 'Showcase customer testimonials',
+      detail: `Highlight ${analysisStats.positive_reviews} positive reviews on product page`,
+      action: 'Update Product Page',
+      priority: 'medium',
+      icon: 'Star'
+    });
+  }
+
+  // 5. Review Volume Based
+  if (totalReviews < 50) {
+    recommendations.push({
+      text: 'Increase review collection efforts',
+      detail: 'More reviews will provide better insights and social proof',
+      action: 'Review Campaign',
+      priority: 'medium',
+      icon: 'MessageSquare'
+    });
+  }
+
+  // 6. Continuous Improvement
+  recommendations.push({
+    text: 'Schedule regular sentiment monitoring',
+    detail: 'Track sentiment trends weekly to catch issues early',
+    action: 'Setup Monitoring',
+    priority: 'low',
+    icon: 'Activity'
+  });
+
+  recommendations.push({
+    text: 'Benchmark against competitors',
+    detail: 'Compare sentiment scores with similar products',
+    action: 'Competitive Analysis',
+    priority: 'low',
+    icon: 'BarChart3'
+  });
+
+  // Sort by priority
+  const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+
+  return recommendations.slice(0, 8); // Limit to top 8 recommendations
+};
 
   const recommendations = generateRecommendations();
 
@@ -1100,45 +1386,162 @@ const ReportsAnalytics = () => {
           {renderChart()}
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-black mb-4">Analysis Insights</h3>
-          <div className="space-y-4">
-            {insights.length > 0 ? insights.map((insight, index) => (
-              <div key={index} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                <div className={`w-2 h-2 rounded-full mt-2 ${insight.type === 'positive' ? 'bg-green-500' :
-                    insight.type === 'negative' ? 'bg-red-500' :
-                      insight.type === 'neutral' ? 'bg-yellow-500' : 'bg-blue-500'
-                  }`}></div>
-                <div>
-                  <p className="text-sm font-medium text-black">{insight.text}</p>
-                  <p className="text-xs text-gray-600">{insight.detail}</p>
+      
+
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  {/* Enhanced Analysis Insights */}
+  <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="text-lg font-semibold text-black flex items-center gap-2">
+        <Icon name="Lightbulb" size={20} className="text-yellow-500" />
+        Analysis Insights
+      </h3>
+      <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+        {insights.length} insights
+      </span>
+    </div>
+    
+    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+      {insights.length > 0 ? insights.map((insight, index) => {
+        const priorityColors = {
+          critical: 'border-red-500 bg-red-50',
+          high: 'border-orange-500 bg-orange-50',
+          medium: 'border-yellow-500 bg-yellow-50',
+          low: 'border-blue-500 bg-blue-50'
+        };
+        
+        const priorityBadges = {
+          critical: 'bg-red-100 text-red-800',
+          high: 'bg-orange-100 text-orange-800',
+          medium: 'bg-yellow-100 text-yellow-800',
+          low: 'bg-blue-100 text-blue-800'
+        };
+        
+        const typeIcons = {
+          positive: { name: 'CheckCircle', color: '#10b981' },
+          negative: { name: 'XCircle', color: '#ef4444' },
+          warning: { name: 'AlertTriangle', color: '#f59e0b' },
+          neutral: { name: 'MinusCircle', color: '#6b7280' },
+          info: { name: 'Info', color: '#3b82f6' }
+        };
+
+        const icon = typeIcons[insight.type] || typeIcons.info;
+
+        return (
+          <div
+            key={index}
+            className={`p-4 rounded-lg border-l-4 transition-all hover:shadow-md ${priorityColors[insight.priority]}`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start gap-3 flex-1">
+                <Icon 
+                  name={insight.icon || icon.name} 
+                  size={20} 
+                  color={icon.color}
+                  className="flex-shrink-0 mt-0.5"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-900 mb-1">
+                    {insight.text}
+                  </p>
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    {insight.detail}
+                  </p>
                 </div>
               </div>
-            )) : (
-              <div className="text-center py-4 text-gray-500">
-                No analysis data available
-              </div>
-            )}
+              {insight.priority && (
+                <span className={`text-xs font-bold px-2 py-1 rounded ${priorityBadges[insight.priority]} ml-2 whitespace-nowrap`}>
+                  {insight.priority.toUpperCase()}
+                </span>
+              )}
+            </div>
           </div>
+        );
+      }) : (
+        <div className="text-center py-8 text-gray-500">
+          <Icon name="AlertCircle" size={40} className="mx-auto mb-3 text-gray-400" />
+          <p className="font-medium">No insights available</p>
+          <p className="text-sm mt-1">Analyze product reviews to generate insights</p>
         </div>
+      )}
+    </div>
+  </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-black mb-4">Recommendations</h3>
-          <div className="space-y-3">
-            {recommendations.length > 0 ? recommendations.map((rec, index) => (
-              <div key={index} className="p-3 bg-gray-50 rounded-lg border-l-4 border-red-500">
-                <p className="text-sm font-medium text-black">{rec.text}</p>
-                <p className="text-xs text-gray-600 mt-1">{rec.detail}</p>
+  {/* Enhanced Recommendations */}
+  <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="text-lg font-semibold text-black flex items-center gap-2">
+        <Icon name="Target" size={20} className="text-red-500" />
+        Action Recommendations
+      </h3>
+      <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+        {recommendations.length} actions
+      </span>
+    </div>
+    
+    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+      {recommendations.length > 0 ? recommendations.map((rec, index) => {
+        const priorityColors = {
+          critical: 'border-red-500 bg-gradient-to-r from-red-50 to-red-100',
+          high: 'border-orange-500 bg-gradient-to-r from-orange-50 to-orange-100',
+          medium: 'border-yellow-500 bg-gradient-to-r from-yellow-50 to-yellow-100',
+          low: 'border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100'
+        };
+        
+        const priorityBadges = {
+          critical: 'bg-red-600 text-white',
+          high: 'bg-orange-600 text-white',
+          medium: 'bg-yellow-600 text-white',
+          low: 'bg-blue-600 text-white'
+        };
+
+        return (
+          <div
+            key={index}
+            className={`p-4 rounded-lg border-l-4 transition-all hover:shadow-md ${priorityColors[rec.priority]}`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start gap-3 flex-1">
+                <Icon 
+                  name={rec.icon || 'CheckSquare'} 
+                  size={20}
+                  className="flex-shrink-0 mt-0.5 text-gray-700"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {rec.text}
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-600 leading-relaxed mb-2">
+                    {rec.detail}
+                  </p>
+                  {rec.action && (
+                    <button className="inline-flex items-center gap-1 text-xs font-medium text-gray-700 hover:text-gray-900 bg-white px-2 py-1 rounded border border-gray-300 hover:border-gray-400 transition-colors">
+                      <Icon name="ArrowRight" size={12} />
+                      {rec.action}
+                    </button>
+                  )}
+                </div>
               </div>
-            )) : (
-              <div className="text-center py-4 text-gray-500">
-                No recommendations available
-              </div>
-            )}
+              {rec.priority && (
+                <span className={`text-xs font-bold px-2 py-1 rounded ${priorityBadges[rec.priority]} ml-2 whitespace-nowrap flex-shrink-0`}>
+                  {rec.priority === 'critical' ? '🔴 URGENT' : rec.priority.toUpperCase()}
+                </span>
+              )}
+            </div>
           </div>
+        );
+      }) : (
+        <div className="text-center py-8 text-gray-500">
+          <Icon name="Target" size={40} className="mx-auto mb-3 text-gray-400" />
+          <p className="font-medium">No recommendations available</p>
+          <p className="text-sm mt-1">Complete sentiment analysis to get recommendations</p>
         </div>
-      </div>
+      )}
+    </div>
+  </div>
+</div>
 
       {analysisData?.sentiment_analysis?.analyzed_reviews && analysisData.sentiment_analysis.analyzed_reviews.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
