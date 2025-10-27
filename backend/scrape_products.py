@@ -27,275 +27,231 @@ def setup_driver():
     return driver
 
 def scrape_product_reviews_selenium(product_url, max_reviews=None, driver=None):
-    """Scrape ALL reviews using Selenium - NO LIMITS"""
+    """Scrape ALL reviews using Selenium with pagination"""
     should_quit = driver is None
     if driver is None:
         driver = setup_driver()
     
     try:
-        print(f"Loading: {product_url[:70]}...")
-        driver.get(product_url)
-        time.sleep(3)
+        # Convert product URL to reviews URL
+        if '/reviews' not in product_url:
+            # Extract product path and add /reviews
+            product_url = product_url.rstrip('/')
+            reviews_base_url = f"{product_url}/reviews"
+        else:
+            reviews_base_url = product_url.split('?')[0]  # Remove query params
         
-        # Click reviews tab - MULTIPLE SELECTORS
-        review_tab_clicked = False
-        tab_selectors = [
-            "a[href='#reviews']",
-            "#reviewsContainer",
-            ".ratingTab",
-            "li.ratingTab a",
-            "a.desc-tab.ratingTab"  # Added from HTML
-        ]
+        print(f"Base reviews URL: {reviews_base_url}")
         
-        for selector in tab_selectors:
-            try:
-                reviews_tab = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-                )
-                driver.execute_script("arguments[0].scrollIntoView(true);", reviews_tab)
-                time.sleep(1)
-                driver.execute_script("arguments[0].click();", reviews_tab)
-                print(f"✓ Clicked reviews tab using: {selector}")
-                review_tab_clicked = True
-                time.sleep(3)
-                break
-            except:
-                continue
+        all_reviews = []
+        page = 1
+        max_pages = 100  # Safety limit
         
-        if not review_tab_clicked:
-            print("✗ Could not click reviews tab")
-            return []
-        
-        # Wait for reviews container
-        reviews_found = False
-        container_selectors = [
-            "#reviewsContainer",
-            ".user-review",
-            ".review-container",
-            "[class*='review']",
-            ".tab-content.activeTab"  # Added from HTML
-        ]
-        
-        for selector in container_selectors:
-            try:
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                )
-                print(f"✓ Found reviews container: {selector}")
-                reviews_found = True
-                break
-            except:
-                continue
-        
-        if not reviews_found:
-            print("✗ Reviews container not found")
-            return []
-        
-        # AGGRESSIVE SCROLLING AND LOAD MORE CLICKING
-        print("🔄 Loading ALL reviews...")
-        last_height = driver.execute_script("return document.body.scrollHeight")
-        scroll_attempts = 0
-        max_scroll_attempts = 100  # Increased significantly
-        no_change_count = 0
-        
-        while scroll_attempts < max_scroll_attempts:
-            # Scroll to bottom
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
-            
-            # Try to click "Load More" or "Show More" buttons
-            load_more_clicked = False
-            load_more_selectors = [
-                "button[class*='load-more']",
-                "button[class*='show-more']",
-                "a[class*='load-more']",
-                ".load-more-reviews",
-                "#load-more",
-                "button.btn[onclick*='loadMore']",
-                ".viewMoreReviews",
-                "#viewMoreReviews",
-                "a[href*='#loadmore']"
-            ]
-            
-            for selector in load_more_selectors:
-                try:
-                    load_more_btn = driver.find_element(By.CSS_SELECTOR, selector)
-                    if load_more_btn.is_displayed() and load_more_btn.is_enabled():
-                        driver.execute_script("arguments[0].scrollIntoView(true);", load_more_btn)
-                        time.sleep(1)
-                        driver.execute_script("arguments[0].click();", load_more_btn)
-                        print(f"✓ Clicked 'Load More' button using: {selector}")
-                        time.sleep(3)  # Wait for new reviews to load
-                        load_more_clicked = True
-                        no_change_count = 0  # Reset counter when button clicked
-                        break
-                except:
-                    continue
-            
-            # Calculate new scroll height
-            new_height = driver.execute_script("return document.body.scrollHeight")
-            
-            if new_height == last_height and not load_more_clicked:
-                no_change_count += 1
-                if no_change_count >= 5:  # If no change 5 times consecutively
-                    print(f"✓ Reached end of reviews after {scroll_attempts} scrolls")
-                    break
+        while page <= max_pages:
+            # Construct page URL
+            if page == 1:
+                page_url = reviews_base_url
             else:
-                no_change_count = 0
+                page_url = f"{reviews_base_url}?page={page}"
             
-            last_height = new_height
-            scroll_attempts += 1
+            print(f"\n📄 Loading reviews page {page}...")
+            driver.get(page_url)
+            time.sleep(3)
             
-            # Print progress every 10 scrolls
-            if scroll_attempts % 10 == 0:
-                current_reviews = len(driver.find_elements(By.CSS_SELECTOR, ".user-review, .reviewCard, [class*='review-item']"))
-                print(f"  Progress: {current_reviews} reviews loaded... (scroll #{scroll_attempts})")
-        
-        print(f"✓ Finished loading reviews. Total attempts: {scroll_attempts}")
-        
-        # Get ALL review items with multiple selectors
-        review_items = []
-        review_selectors = [
-            ".user-review",
-            ".reviewCard",
-            ".review-card",
-            "[class*='review-item']",
-            "[class*='user-review']",
-            "#reviewsContainer .tab-content .clearfix",  # From HTML structure
-            ".comp-review-wrapper .review"
-        ]
-        
-        for selector in review_selectors:
-            review_items = driver.find_elements(By.CSS_SELECTOR, selector)
-            if len(review_items) > 0:
-                print(f"✓ Found {len(review_items)} review elements using: {selector}")
-                break
-        
-        if not review_items:
-            print("✗ No review items found")
-            return []
-        
-        print(f"📝 Processing ALL {len(review_items)} reviews...")
-        
-        reviews = []
-        for i, item in enumerate(review_items, 1):
+            # Check if we're on a valid reviews page
             try:
-                # Extract review text
-                review_text = ""
-                text_selectors = [
-                    ".user-review-text",
-                    ".reviewText",
-                    ".review-text",
-                    ".reviewdesc",
-                    ".rvw-desc",
-                    ".review-content",
-                    "p",
-                    "span"
+                # Wait for reviews container
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "#reviewsContainer, .user-review, .reviewCard"))
+                )
+            except TimeoutException:
+                print(f"✗ No reviews found on page {page}")
+                break
+            
+            # Extract reviews from current page
+            page_reviews = extract_reviews_from_page(driver)
+            
+            if not page_reviews:
+                print(f"✗ No reviews extracted from page {page} - reached end")
+                break
+            
+            all_reviews.extend(page_reviews)
+            print(f"✓ Extracted {len(page_reviews)} reviews from page {page} (Total: {len(all_reviews)})")
+            
+            # Check if there's a next page
+            has_next_page = False
+            try:
+                # Look for pagination controls
+                next_button_selectors = [
+                    "a[href*='page=" + str(page + 1) + "']",
+                    ".pagination a.next",
+                    "a.next-page",
+                    ".pagination li.active + li a",
+                    "a[rel='next']"
                 ]
                 
-                for selector in text_selectors:
+                for selector in next_button_selectors:
                     try:
-                        text_elements = item.find_elements(By.CSS_SELECTOR, selector)
-                        for text_elem in text_elements:
-                            text = text_elem.text.strip()
-                            if text and len(text) > 20:
-                                review_text = text
-                                break
-                        if review_text:
+                        next_btn = driver.find_element(By.CSS_SELECTOR, selector)
+                        if next_btn.is_displayed():
+                            has_next_page = True
                             break
                     except:
                         continue
                 
-                if not review_text:
-                    all_text = item.text.strip()
-                    if len(all_text) > 30 and len(all_text) < 2000:
-                        review_text = all_text
-                
-                if not review_text or len(review_text) < 20:
-                    continue
-                
-                # Extract rating
-                rating = "No rating"
-                try:
-                    rating_selectors = [
-                        ".filled-stars",
-                        ".star-rating",
-                        "[class*='rating']",
-                        "[class*='star']"
-                    ]
-                    
-                    for selector in rating_selectors:
-                        try:
-                            rating_elem = item.find_element(By.CSS_SELECTOR, selector)
-                            style = rating_elem.get_attribute("style") or ""
-                            if "width" in style:
-                                import re
-                                width_match = re.search(r'width:\s*(\d+\.?\d*)%', style)
-                                if width_match:
-                                    width = float(width_match.group(1))
-                                    rating = f"{width/20:.1f}/5"
-                                    break
-                        except:
-                            continue
-                except:
-                    pass
-                
-                # Extract reviewer and date
-                reviewer = "Anonymous"
-                review_date = "Unknown date"
-                try:
-                    meta_selectors = [
-                        ".reviewer-name",
-                        ".user-name",
-                        ".reviewer"
-                    ]
-                    
-                    for selector in meta_selectors:
-                        try:
-                            meta_elem = item.find_element(By.CSS_SELECTOR, selector)
-                            meta_text = meta_elem.text.strip()
-                            if meta_text:
-                                if " on " in meta_text:
-                                    parts = meta_text.split(" on ")
-                                    if len(parts) == 2:
-                                        reviewer = parts[0].replace("by", "").replace("By", "").strip()
-                                        review_date = parts[1].strip()
-                                        break
-                                else:
-                                    reviewer = meta_text
-                                    break
-                        except:
-                            continue
-                except:
-                    pass
-                
-                review_data = {
-                    "rating": rating,
-                    "text": review_text,
-                    "reviewer": reviewer,
-                    "date": review_date,
-                    "scraped_at": datetime.now().isoformat()
-                }
-                
-                reviews.append(review_data)
-                
-                # Print progress every 10 reviews
-                if i % 10 == 0:
-                    print(f"  ✓ Processed {i}/{len(review_items)} reviews...")
+                # Alternative: Check if reviews count indicates more pages
+                if not has_next_page:
+                    try:
+                        # Look for "1-10 of 23 Reviews" type text
+                        review_count_elem = driver.find_element(By.CSS_SELECTOR, ".review-count, .reviews-header, [class*='review-total']")
+                        count_text = review_count_elem.text
+                        # Parse "1-10 of 23" format
+                        import re
+                        match = re.search(r'(\d+)-(\d+)\s+of\s+(\d+)', count_text)
+                        if match:
+                            current_end = int(match.group(2))
+                            total_reviews = int(match.group(3))
+                            has_next_page = current_end < total_reviews
+                    except:
+                        pass
                 
             except Exception as e:
-                continue
+                print(f"  Could not check for next page: {e}")
+            
+            if not has_next_page:
+                print(f"✓ Reached last page ({page})")
+                break
+            
+            page += 1
+            time.sleep(2)  # Be polite to the server
         
-        print(f"✅ Successfully extracted ALL {len(reviews)} reviews")
-        return reviews
+        print(f"\n✅ Total reviews extracted: {len(all_reviews)} from {page} pages")
+        return all_reviews
         
     except Exception as e:
         print(f"✗ Error scraping reviews: {e}")
-        return []
+        import traceback
+        traceback.print_exc()
+        return all_reviews if 'all_reviews' in locals() else []
     
     finally:
         if should_quit and driver:
             driver.quit()
+
+def extract_reviews_from_page(driver):
+    """Extract all reviews from the current page"""
+    reviews = []
+    
+    # Find review items
+    review_selectors = [
+        ".user-review",
+        ".reviewCard",
+        ".review-card",
+        "[class*='review-item']",
+        ".comp-review-wrapper .review",
+        "#reviewsContainer .clearfix[class*='review']"
+    ]
+    
+    review_items = []
+    for selector in review_selectors:
+        review_items = driver.find_elements(By.CSS_SELECTOR, selector)
+        if len(review_items) > 0:
+            break
+    
+    if not review_items:
+        return reviews
+    
+    for item in review_items:
+        try:
+            # Extract review text
+            review_text = ""
+            text_selectors = [
+                ".user-review-text",
+                ".reviewText",
+                ".review-text",
+                ".reviewdesc",
+                ".rvw-desc",
+                ".review-content",
+                "p",
+                ".review-description"
+            ]
+            
+            for selector in text_selectors:
+                try:
+                    text_elements = item.find_elements(By.CSS_SELECTOR, selector)
+                    for text_elem in text_elements:
+                        text = text_elem.text.strip()
+                        if text and len(text) > 20:
+                            review_text = text
+                            break
+                    if review_text:
+                        break
+                except:
+                    continue
+            
+            if not review_text:
+                all_text = item.text.strip()
+                if len(all_text) > 30 and len(all_text) < 2000:
+                    lines = all_text.split('\n')
+                    # Usually review text is the longest line
+                    review_text = max(lines, key=len) if lines else all_text
+            
+            if not review_text or len(review_text) < 20:
+                continue
+            
+            # Extract rating
+            rating = "No rating"
+            try:
+                rating_elem = item.find_element(By.CSS_SELECTOR, ".filled-stars")
+                style = rating_elem.get_attribute("style") or ""
+                if "width" in style:
+                    import re
+                    width_match = re.search(r'width:\s*(\d+\.?\d*)%', style)
+                    if width_match:
+                        width = float(width_match.group(1))
+                        rating = f"{width/20:.1f}/5"
+            except:
+                pass
+            
+            # Extract reviewer and date
+            reviewer = "Anonymous"
+            review_date = "Unknown date"
+            try:
+                reviewer_elem = item.find_element(By.CSS_SELECTOR, ".reviewer-name, .user-name, .reviewer")
+                meta_text = reviewer_elem.text.strip()
+                
+                if " on " in meta_text:
+                    parts = meta_text.split(" on ")
+                    if len(parts) == 2:
+                        reviewer = parts[0].replace("by", "").replace("By", "").strip()
+                        review_date = parts[1].strip()
+                else:
+                    reviewer = meta_text
+            except:
+                pass
+            
+            # Try to get date separately if not found
+            if review_date == "Unknown date":
+                try:
+                    date_elem = item.find_element(By.CSS_SELECTOR, ".review-date, .date, [class*='date']")
+                    review_date = date_elem.text.strip()
+                except:
+                    pass
+            
+            review_data = {
+                "rating": rating,
+                "text": review_text,
+                "reviewer": reviewer,
+                "date": review_date,
+                "scraped_at": datetime.now().isoformat()
+            }
+            
+            reviews.append(review_data)
+            
+        except Exception as e:
+            continue
+    
+    return reviews
             
 def debug_page_structure(driver, product_url):
     """Debug function to save page structure for analysis"""
