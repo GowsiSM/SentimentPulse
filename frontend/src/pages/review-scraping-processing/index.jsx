@@ -101,38 +101,32 @@ const ReviewScrapingProcessing = () => {
           {/* Progress Section */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="text-center">
-              {/* Circular Progress */}
-              <div className="relative w-32 h-32 mx-auto mb-4">
-                <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="54"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    fill="transparent"
-                    className="text-gray-200"
-                  />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="54"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    fill="transparent"
-                    strokeDasharray={`${2 * Math.PI * 54}`}
-                    strokeDashoffset={`${2 * Math.PI * 54 * (1 - currentProgress / 100)}`}
-                    className="text-blue-600 transition-all duration-500 ease-out"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{Math.round(currentProgress)}%</div>
-                    <div className="text-xs text-gray-500">Complete</div>
-                  </div>
-                </div>
-              </div>
+              {/* Animated Loading Spinner */}
+<div className="flex flex-col items-center justify-center mb-6">
+  {isProcessing ? (
+    <>
+      {/* Modern animated spinner */}
+      <div className="relative w-16 h-16">
+        <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+        <div className="absolute inset-0 rounded-full border-4 border-t-blue-600 border-b-transparent animate-spin"></div>
+      </div>
+
+      <p className="mt-4 text-gray-700 font-medium animate-pulse">
+        Scraping reviews...
+      </p>
+    </>
+  ) : (
+    <div className="flex flex-col items-center justify-center">
+      <div className="relative w-16 h-16 flex items-center justify-center">
+        <div className="absolute inset-0 rounded-full border-4 border-green-200"></div>
+        <div className="absolute inset-0 rounded-full border-4 border-t-green-600 animate-[spin_1s_ease-in-out_1]"></div>
+        <Icon name="CheckCircle" size={28} className="text-green-600" />
+      </div>
+      <p className="mt-3 text-gray-700 font-medium">Scraping Complete!</p>
+    </div>
+  )}
+</div>
+
 
               {/* Status */}
               <div className="flex items-center justify-center gap-2 mb-2">
